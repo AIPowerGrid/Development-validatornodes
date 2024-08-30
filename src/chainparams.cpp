@@ -23,27 +23,7 @@ extern double algoHashTotal[16];
 extern int algoHashHits[16];
 
 
-static CBlock CreateGenesisBlock(const char* pszTimestamp, const CScript& genesisOutputScript, uint32_t nTime, uint32_t nNonce, uint32_t nBits, int32_t nVersion, const CAmount& genesisReward)
-{
-    CMutableTransaction txNew;
-    txNew.nVersion = 1;
-    txNew.vin.resize(1);
-    txNew.vout.resize(1);
-    txNew.vin[0].scriptSig = CScript() << CScriptNum(0) << 486604799 << CScriptNum(4) << std::vector<unsigned char>((const unsigned char*)pszTimestamp, (const unsigned char*)pszTimestamp + strlen(pszTimestamp));
-    txNew.vout[0].nValue = genesisReward;
-    txNew.vout[0].scriptPubKey = genesisOutputScript;
 
-    CBlock genesis;
-    genesis.nTime    = nTime;
-    genesis.nBits    = nBits;
-    genesis.nNonce   = nNonce;
-    genesis.nNonce64   = nNonce;
-    genesis.nVersion = nVersion;
-    genesis.vtx.push_back(MakeTransactionRef(std::move(txNew)));
-    genesis.hashPrevBlock.SetNull();
-    genesis.hashMerkleRoot = BlockMerkleRoot(genesis);
-    return genesis;
-}
 
 static CBlock CreateDevNetGenesisBlock(const uint256 &prevBlockHash, const std::string& devNetName, uint32_t nTime, uint32_t nNonce, uint32_t nBits, const CAmount& genesisReward)
 {
@@ -69,43 +49,6 @@ static CBlock CreateDevNetGenesisBlock(const uint256 &prevBlockHash, const std::
     return genesis;
 }
 
-
-static void FindMainNetGenesisBlock(uint32_t nTime, uint32_t nBits, const char* network)
-{
-    // Define the timestamp and genesis output script
-    const char* pszTimestamp = "Super cool test net for AIPG with masternodes yippii";
-    const CScript genesisOutputScript = CScript() << ParseHex("04f529c0007624ffa8c565cf9fbbcf406701b2a279a3ef06232069429b3c8c9fe8cac1b4062b418cdd4e4e2ea72ddbdf935a8f30fc3ca04d1844f6963332df8581") << OP_CHECKSIG;
-
-    // Correct call to CreateGenesisBlock
-    CBlock block = CreateGenesisBlock(pszTimestamp, genesisOutputScript, nTime, 0, nBits, 4, 5000 * COIN);
-
-    arith_uint256 bnTarget;
-    bnTarget.SetCompact(block.nBits);
-    block.nNonce64 = -1;
-    for (uint32_t nNonce = 0; nNonce < UINT32_MAX; nNonce++) {
-        block.nNonce = nNonce;
-        block.nNonce64++;
-        uint256 mix_hash;
-        uint256 hash = block.GetHashFull(mix_hash);
-        if (nNonce % 48 == 0) {
-            printf("\nrnonce=%d, pow is %s\n", nNonce, hash.GetHex().c_str());
-        }
-        if (UintToArith256(hash) <= bnTarget) {
-            block.mix_hash = mix_hash;
-            printf("\n%s net\n", network);
-            printf("\ngenesis is %s\n", block.ToString().c_str());
-            printf("\npow is %s\n", hash.GetHex().c_str());
-            printf("\ngenesisNonce is %d\n", nNonce);
-            std::cout << "Genesis Merkle " << block.hashMerkleRoot.GetHex() << std::endl;
-            return;
-        }
-    }
-
-    error("%sNetGenesisBlock: could not find %s genesis block", network, network);
-    assert(false);
-}
-
-
 /**
  * Build the genesis block. Note that the output of its generation
  * transaction cannot be spent since it did not originally exist in the
@@ -117,6 +60,29 @@ static void FindMainNetGenesisBlock(uint32_t nTime, uint32_t nBits, const char* 
  *     CTxOut(nValue=50.00000000, scriptPubKey=0xA9037BAC7050C479B121CF)
  *   vMerkleTree: e0028e
  */
+
+static CBlock CreateGenesisBlock(const char* pszTimestamp, const CScript& genesisOutputScript, uint32_t nTime, uint32_t nNonce, uint32_t nBits, int32_t nVersion, const CAmount& genesisReward)
+{
+    CMutableTransaction txNew;
+    txNew.nVersion = 1;
+    txNew.vin.resize(1);
+    txNew.vout.resize(1);
+    txNew.vin[0].scriptSig = CScript() << CScriptNum(0) << 486604799 << CScriptNum(4) << std::vector<unsigned char>((const unsigned char*)pszTimestamp, (const unsigned char*)pszTimestamp + strlen(pszTimestamp));
+    txNew.vout[0].nValue = genesisReward;
+    txNew.vout[0].scriptPubKey = genesisOutputScript;
+
+    CBlock genesis;
+    genesis.nTime    = nTime;
+    genesis.nBits    = nBits;
+    genesis.nNonce   = nNonce;
+    genesis.nNonce64   = nNonce;
+    genesis.nVersion = nVersion;
+    genesis.vtx.push_back(MakeTransactionRef(std::move(txNew)));
+    genesis.hashPrevBlock.SetNull();
+    genesis.hashMerkleRoot = BlockMerkleRoot(genesis);
+    return genesis;
+}
+
 static CBlock CreateGenesisBlock(uint32_t nTime, uint32_t nNonce, uint32_t nBits, int32_t nVersion, const CAmount& genesisReward)
 {
     const char* pszTimestamp = "Super cool test net for AIPG with masternodes yippii";
@@ -194,6 +160,36 @@ std::optional<Consensus::LLMQParams> CChainParams::GetLLMQ(Consensus::LLMQType l
     return std::nullopt;
 }
 
+static void FindMainNetGenesisBlock(uint32_t nTime, uint32_t nBits, const char* network)
+{
+    CBlock block = CreateGenesisBlock(nTime, 0, nBits, 4, 5000 * COIN);
+
+    arith_uint256 bnTarget;
+    bnTarget.SetCompact(block.nBits);
+    block.nNonce64 = -1;
+    for (uint32_t nNonce = 0; nNonce < UINT32_MAX; nNonce++) {
+        block.nNonce = nNonce;
+        block.nNonce64++;
+        uint256 mix_hash;
+        uint256 hash = block.GetHashFull(mix_hash);
+        if (nNonce % 48 == 0) {
+            printf("\nrnonce=%d, pow is %s\n", nNonce, hash.GetHex().c_str());
+        }
+        if (UintToArith256(hash) <= bnTarget) {
+            block.mix_hash = mix_hash;
+            printf("\n%s net\n", network);
+            printf("\ngenesis is %s\n", block.ToString().c_str());
+            printf("\npow is %s\n", hash.GetHex().c_str());
+            printf("\ngenesisNonce is %d\n", nNonce);
+            std::cout << "Genesis Merkle " << block.hashMerkleRoot.GetHex() << std::endl;
+            return;
+        }
+    }
+
+    error("%sNetGenesisBlock: could not find %s genesis block", network, network);
+    assert(false);
+}
+
 /**
  * Main network on which people trade goods and services.
  */
@@ -235,7 +231,7 @@ public:
         consensus.DIP0024QuorumsHeight = 1; // 000000000000001aa25181e4c466e593992c98f9eb21c69ee757b8bb0af50244
         consensus.V19Height = 1; // 0000000000000015e32e73052d663626327004c81c5c22cb8b42c361015c0eae
         consensus.MinBIP9WarningHeight = 1 + 5; // V19 activation height + miner confirmation window
-        consensus.powLimit = uint256S("00000fffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"); // ~uint256(0) >> 20
+        consensus.powLimit = uint256S("00ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"); // ~uint256(0) >> 20
         consensus.nPowTargetTimespan = 10 * 60; // Dash: 1 day
         consensus.nPowTargetSpacing = 1 * 60; // Dash: 1 minutes
         consensus.fPowAllowMinDifficultyBlocks = false;
@@ -289,15 +285,15 @@ public:
         m_assumed_blockchain_size = 45;
         m_assumed_chain_state_size = 1;
 
-        //FindMainNetGenesisBlock(1717416548, 0x20001fff, "main");
-        uint32_t nGenesisTime = 1717416548;	
+        //FindMainNetGenesisBlock(1723905114, 0x20001fff, "main");
+        uint32_t nGenesisTime = 1723905114;	
         
-	    genesis = CreateGenesisBlock(nGenesisTime, 608, 0x20001fff, 4, 5000 * COIN);
+	    genesis = CreateGenesisBlock(nGenesisTime, 3061, 0x20001fff, 4, 5000 * COIN);
         uint256 mix_hash;
         consensus.hashGenesisBlock = genesis.GetHashFull(mix_hash);
         genesis.mix_hash = mix_hash;
         //std::cout << "hashGenesisBlock " << consensus.hashGenesisBlock.GetHex() << std::endl;
-	    assert(consensus.hashGenesisBlock == uint256S("001f28dcfbcdc87106b42b013833f929e050a87ddafae04baf97d9e15e7f0234"));
+	    assert(consensus.hashGenesisBlock == uint256S("000907a4ee235ffb1b1eccb7cc3289ed845b51d312c120c6bd213dce08ef910c"));
         assert(genesis.hashMerkleRoot == uint256S("978a6bdc0038f2590723c4874583aaf8d3f9177711e4eea62e6ce90ec218090c"));
 
         // Note that of those which support the service bits prefix, most only support a subset of
@@ -351,7 +347,7 @@ public:
             }
         };
 
-        nKAAAWWWPOWActivationTime = 1688764800;
+        nKAAAWWWPOWActivationTime = 1724578706;
         nKAWPOWActivationTime = nKAAAWWWPOWActivationTime;
 
         m_assumeutxo_data = MapAssumeutxo{
@@ -456,15 +452,15 @@ public:
         m_assumed_blockchain_size = 4;
         m_assumed_chain_state_size = 1;
 
-        //FindMainNetGenesisBlock(1717416560, 0x20001fff, "test");
-        uint32_t nGenesisTime = 1717416560;	
+        //FindMainNetGenesisBlock(1725978566, 0x20001fff, "test");
+        uint32_t nGenesisTime = 1725978566;	
         
-	    genesis = CreateGenesisBlock(nGenesisTime, 124, 0x20001fff, 4, 5000 * COIN);
+	    genesis = CreateGenesisBlock(nGenesisTime, 326, 0x20001fff, 4, 5000 * COIN);
         uint256 mix_hash;
         consensus.hashGenesisBlock = genesis.GetHashFull(mix_hash);
         genesis.mix_hash = mix_hash;
         //std::cout << "hashGenesisBlock " << consensus.hashGenesisBlock.GetHex() << std::endl;
-	    assert(consensus.hashGenesisBlock == uint256S("0011b4680b380a083ba2970cb37d1933c59d13c9042cb1f1cefda8e17bd5f881"));
+	    assert(consensus.hashGenesisBlock == uint256S("0015390b454aec02756a5157e4d91ba73287ad628778c188085d339b48395859"));
         assert(genesis.hashMerkleRoot == uint256S("978a6bdc0038f2590723c4874583aaf8d3f9177711e4eea62e6ce90ec218090c"));
 
         vFixedSeeds.clear();
@@ -880,15 +876,15 @@ public:
         UpdateBudgetParametersFromArgs(args);
 
 
-        //FindMainNetGenesisBlock(1717416565, 0x20001fff, "devnettest");
-        uint32_t nGenesisTime = 1717416565;	
+        //FindMainNetGenesisBlock(1725978567, 0x20001fff, "devnettest");
+        uint32_t nGenesisTime = 1725978567;	
         
-	    genesis = CreateGenesisBlock(nGenesisTime, 135, 0x20001fff, 4, 5000 * COIN);
+	    genesis = CreateGenesisBlock(nGenesisTime, 4491, 0x20001fff, 4, 5000 * COIN);
         uint256 mix_hash;
         consensus.hashGenesisBlock = genesis.GetHashFull(mix_hash);
         genesis.mix_hash = mix_hash;
         //std::cout << "hashGenesisBlock " << consensus.hashGenesisBlock.GetHex() << std::endl;
-	    assert(consensus.hashGenesisBlock == uint256S("0004f5272c4ef43f67afc7e41e51605b2a63af4340acdf92d17c7dec666ad53f"));
+	    assert(consensus.hashGenesisBlock == uint256S("001e5ea92a58ff130751c9809569ab362f134f3af937946d096afa9a100c23c4"));
         assert(genesis.hashMerkleRoot == uint256S("978a6bdc0038f2590723c4874583aaf8d3f9177711e4eea62e6ce90ec218090c"));
 
 
