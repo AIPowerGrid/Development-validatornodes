@@ -1,12 +1,17 @@
-// Copyright (c) 2013-2020 The Bitcoin Core developers
+// Copyright (c) 2013-2015 The Bitcoin Core developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
 #include <hash.h>
 #include <span.h>
-#include <crypto/common.h>
-#include <crypto/hmac_sha512.h>
+#include <kawpow/common.h>
+#include <kawpow/hmac_sha512.h>
+#include <primitives/block.h> 
+#include <kawpow/ethash/include/ethash/progpow.hpp>
 
+//todo: remove these
+double algoHashTotal[16];
+int algoHashHits[16];
 
 inline uint32_t ROTL32(uint32_t x, int8_t r)
 {
@@ -47,10 +52,8 @@ unsigned int MurmurHash3(unsigned int nHashSeed, Span<const unsigned char> vData
     switch (vDataToHash.size() & 3) {
         case 3:
             k1 ^= tail[2] << 16;
-            [[fallthrough]];
         case 2:
             k1 ^= tail[1] << 8;
-            [[fallthrough]];
         case 1:
             k1 ^= tail[0];
             k1 *= c1;
@@ -83,4 +86,37 @@ uint256 SHA256Uint256(const uint256& input)
     uint256 result;
     CSHA256().Write(input.begin(), 32).Finalize(result.begin());
     return result;
+}
+
+uint256 KAWPOWHash(const CBlockHeader& blockHeader, uint256& mix_hash)
+{
+    static ethash::epoch_context_ptr context{nullptr, nullptr};
+
+    // Get the context from the block height
+    const auto epoch_number = ethash::get_epoch_number(blockHeader.nHeight);
+
+    if (!context || context->epoch_number != epoch_number)
+        context = ethash::create_epoch_context(epoch_number);
+
+    // Build the header_hash
+    uint256 nHeaderHash = blockHeader.GetKAWPOWHeaderHash();
+    const auto header_hash = to_hash256(nHeaderHash.GetHex());
+
+    // ProgPow hash
+    const auto result = progpow::hash(*context, blockHeader.nHeight, header_hash, blockHeader.nNonce64);
+
+    mix_hash = uint256S(to_hex(result.mix_hash));
+    return uint256S(to_hex(result.final_hash));
+}
+
+uint256 KAWPOWHash_OnlyMix(const CBlockHeader& blockHeader)
+{
+    // Build the header_hash
+    uint256 nHeaderHash = blockHeader.GetKAWPOWHeaderHash();
+    const auto header_hash = to_hash256(nHeaderHash.GetHex());
+
+    // ProgPow hash
+    const auto result = progpow::hash_no_verify(blockHeader.nHeight, header_hash, to_hash256(blockHeader.mix_hash.GetHex()), blockHeader.nNonce64);
+
+    return uint256S(to_hex(result));
 }
