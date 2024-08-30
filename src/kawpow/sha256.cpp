@@ -5,7 +5,7 @@
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
 #include "kawpow/sha256.h"
-#include "crypto-x16R/common.h"
+#include "kawpow/common.h"
 
 #include <assert.h>
 #include <string.h>
