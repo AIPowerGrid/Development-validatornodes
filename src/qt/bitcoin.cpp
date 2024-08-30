@@ -85,7 +85,7 @@ static void RegisterMetaTypes()
   #ifdef ENABLE_WALLET
     qRegisterMetaType<WalletModel*>();
   #endif
-    // Register typedefs (see https://doc.qt.io/qt-5/qmetatype.html#qRegisterMetaType)
+    // Register typedefs (see http://qt-project.org/doc/qt-5/qmetatype.html#qRegisterMetaType)
     // IMPORTANT: if CAmount is no longer a typedef use the normal variant above (see https://doc.qt.io/qt-5/qmetatype.html#qRegisterMetaType-1)
     qRegisterMetaType<CAmount>("CAmount");
     qRegisterMetaType<size_t>("size_t");
@@ -631,7 +631,7 @@ int GuiMain(int argc, char* argv[])
     if (!Intro::showIfNeeded(did_show_intro, prune_MiB)) return EXIT_SUCCESS;
 
     /// 6. Determine availability of data directory and parse dash.conf
-    /// - Do not call gArgs.GetDataDirNet() before this step finishes
+    /// - Do not call GetDataDir(true) before this step finishes
     if (!CheckDataDirOption()) {
         InitError(strprintf(Untranslated("Specified data directory \"%s\" does not exist.\n"), gArgs.GetArg("-datadir", "")));
         QMessageBox::critical(nullptr, PACKAGE_NAME,
@@ -758,8 +758,8 @@ int GuiMain(int argc, char* argv[])
     }
     // Validate/set custom css directory
     if (gArgs.IsArgSet("-custom-css-dir")) {
-        fs::path customDir = fs::PathFromString(gArgs.GetArg("-custom-css-dir", ""));
-        QString strCustomDir = GUIUtil::PathToQString(customDir);
+        fs::path customDir = fs::path(gArgs.GetArg("-custom-css-dir", ""));
+        QString strCustomDir = QString::fromStdString(customDir.string());
         std::vector<QString> vecRequiredFiles = GUIUtil::listStyleSheets();
         QString strFile;
 
@@ -771,7 +771,7 @@ int GuiMain(int argc, char* argv[])
 
         for (auto itCustomDir = fs::directory_iterator(customDir); itCustomDir != fs::directory_iterator(); ++itCustomDir) {
             if (fs::is_regular_file(*itCustomDir) && itCustomDir->path().extension() == ".css") {
-                strFile = GUIUtil::PathToQString(itCustomDir->path().filename());
+                strFile = QString::fromStdString(itCustomDir->path().filename().string());
                 auto itFile = std::find(vecRequiredFiles.begin(), vecRequiredFiles.end(), strFile);
                 if (itFile != vecRequiredFiles.end()) {
                     vecRequiredFiles.erase(itFile);

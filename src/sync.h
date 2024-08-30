@@ -11,10 +11,6 @@
 #include <threadsafety.h>
 #include <util/macros.h>
 
-#include <boost/thread/condition_variable.hpp>
-#include <boost/thread/mutex.hpp>
-#include <boost/thread/recursive_mutex.hpp>
-
 #include <condition_variable>
 #include <mutex>
 #include <shared_mutex>
@@ -451,14 +447,6 @@ public:
     operator bool() const
     {
         return fHaveGrant;
-    }
-};
-
-class CCriticalSection : public AnnotatedMixin<boost::recursive_mutex>
-{
-public:
-    ~CCriticalSection() {
-        DeleteLock((void*)this);
     }
 };
 

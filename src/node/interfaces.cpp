@@ -67,7 +67,6 @@
 #include <memory>
 #include <optional>
 #include <utility>
-#include <variant>
 
 using interfaces::BlockTip;
 using interfaces::Chain;
@@ -318,7 +317,7 @@ public:
     }
     bool appInitMain(interfaces::BlockAndHeaderTipInfo* tip_info) override
     {
-        return AppInitMain(*m_context, tip_info);
+        return AppInitMain(m_context_ref, *m_context, tip_info);
     }
     void appShutdown() override
     {
@@ -419,10 +418,9 @@ public:
     bool getHeaderTip(int& height, int64_t& block_time) override
     {
         LOCK(::cs_main);
-        auto best_header = chainman().m_best_header;
-        if (best_header) {
-            height = best_header->nHeight;
-            block_time = best_header->GetBlockTime();
+        if (::pindexBestHeader) {
+            height = ::pindexBestHeader->nHeight;
+            block_time = ::pindexBestHeader->GetBlockTime();
             return true;
         }
         return false;
@@ -481,14 +479,13 @@ public:
     CFeeRate getDustRelayFee() override { return ::dustRelayFee; }
     UniValue executeRpc(const std::string& command, const UniValue& params, const std::string& uri) override
     {
-        JSONRPCRequest req;
-        req.context = *m_context;
+        JSONRPCRequest req(m_context_ref);
         req.params = params;
         req.strMethod = command;
         req.URI = uri;
         return ::tableRPC.execute(req);
     }
-    std::vector<std::string> listRpcCommands() override { return ::tableRPC.listCommands(); }
+    std::vector<std::pair<std::string, std::string>> listRpcCommands() override { return ::tableRPC.listCommands(); }
     void rpcSetTimerInterfaceIfUnset(RPCTimerInterface* iface) override { RPCSetTimerInterfaceIfUnset(iface); }
     void rpcUnsetTimerInterface(RPCTimerInterface* iface) override { RPCUnsetTimerInterface(iface); }
     bool getUnspentOutput(const COutPoint& output, Coin& coin) override
@@ -583,8 +580,15 @@ public:
         m_gov.setContext(context);
         m_llmq.setContext(context);
         m_masternodeSync.setContext(context);
+
+        if (context) {
+            m_context_ref = *context;
+        } else {
+            m_context_ref = std::nullopt;
+        }
     }
     NodeContext* m_context{nullptr};
+    CoreContext m_context_ref{std::nullopt};
 };
 
 bool FillBlock(const CBlockIndex* index, const FoundBlock& block, UniqueLock<RecursiveMutex>& lock, const CChain& active)
@@ -684,14 +688,14 @@ public:
                 throw;
             }
         };
-        ::tableRPC.appendCommand(m_command.name, &m_command);
+        ::tableRPC.appendCommand(m_command.name, m_command.subname, &m_command);
     }
 
     void disconnect() override final
     {
         if (m_wrapped_command) {
             m_wrapped_command = nullptr;
-            ::tableRPC.removeCommand(m_command.name, &m_command);
+            ::tableRPC.removeCommand(m_command.name, m_command.subname, &m_command);
         }
     }
 
@@ -758,8 +762,8 @@ public:
     std::optional<int> findLocatorFork(const CBlockLocator& locator) override
     {
         LOCK(cs_main);
-        const CChainState& active = Assert(m_node.chainman)->ActiveChainstate();
-        if (const CBlockIndex* fork = active.FindForkInGlobalIndex(locator)) {
+        const CChain& active = Assert(m_node.chainman)->ActiveChain();
+        if (CBlockIndex* fork = m_node.chainman->m_blockman.FindForkInGlobalIndex(active, locator)) {
             return fork->nHeight;
         }
         return std::nullopt;
@@ -857,7 +861,7 @@ public:
         // used to limit the range, and passing min_height that's too low or
         // max_height that's too high will not crash or change the result.
         LOCK(::cs_main);
-        if (const CBlockIndex* block = chainman().m_blockman.LookupBlockIndex(block_hash)) {
+        if (CBlockIndex* block = chainman().m_blockman.LookupBlockIndex(block_hash)) {
             if (max_height && block->nHeight >= *max_height) block = block->GetAncestor(*max_height);
             for (; block->nStatus & BLOCK_HAVE_DATA; block = block->pprev) {
                 // Check pprev to not segfault if min_height is too low
@@ -879,7 +883,7 @@ public:
         auto it = m_node.mempool->GetIter(txid);
         return it && (*it)->GetCountWithDescendants() > 1;
     }
-    bool broadcastTransaction(const CTransactionRef& tx, const CAmount& max_tx_fee, bool relay, bilingual_str& err_string) override
+    bool broadcastTransaction(const CTransactionRef& tx, const CAmount& max_tx_fee, bool relay, std::string& err_string) override
     {
         const TransactionError err = BroadcastTransaction(m_node, tx, err_string, max_tx_fee, relay, /*wait_callback*/ false);
         // Chain clients only care about failures to accept the tx to the mempool. Disregard non-mempool related failures.
@@ -935,7 +939,7 @@ public:
     bool havePruned() override
     {
         LOCK(cs_main);
-        return m_node.chainman->m_blockman.m_have_pruned;
+        return ::fHavePruned;
     }
     bool isReadyToBroadcast() override { return !::fImporting && !::fReindex && !isInitialBlockDownload(); }
     bool isInitialBlockDownload() override {

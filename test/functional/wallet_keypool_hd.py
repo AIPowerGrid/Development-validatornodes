@@ -70,7 +70,7 @@ class KeyPoolTest(BitcoinTestFramework):
         addr_data = nodes[0].getaddressinfo(addr)
         wallet_info = nodes[0].getwalletinfo()
 
-        # we don't have feature of replacing seed due to bitcoin#17681 is DNM, no need to check if masterfingerprint is changed
+        # TODO: enable this assert after bitcoin#17681 is backported
         # assert addr_before_encrypting_data['hdmasterfingerprint'] != addr_data['hdmasterfingerprint']
         if not self.options.descriptors:
             assert addr_data['hdchainid'] == wallet_info['hdchainid']

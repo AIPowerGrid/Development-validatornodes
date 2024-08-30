@@ -51,10 +51,10 @@ private:
         ssObj << hash;
 
         // open output file, and associate with CAutoFile
-        FILE *file = fsbridge::fopen(pathDB, "wb");
+        FILE *file = fopen(pathDB.string().c_str(), "wb");
         CAutoFile fileout(file, SER_DISK, CLIENT_VERSION);
         if (fileout.IsNull())
-            return error("%s: Failed to open file %s", __func__, fs::PathToString(pathDB));
+            return error("%s: Failed to open file %s", __func__, pathDB.string());
 
         // Write and commit header, data
         try {
@@ -77,11 +77,11 @@ private:
 
         int64_t nStart = GetTimeMillis();
         // open input file, and associate with CAutoFile
-        FILE *file = fsbridge::fopen(pathDB, "rb");
+        FILE *file = fopen(pathDB.string().c_str(), "rb");
         CAutoFile filein(file, SER_DISK, CLIENT_VERSION);
         if (filein.IsNull())
         {
-            error("%s: Failed to open file %s", __func__, fs::PathToString(pathDB));
+            error("%s: Failed to open file %s", __func__, pathDB.string());
             return FileError;
         }
 
@@ -180,7 +180,7 @@ private:
 public:
     CFlatDB(std::string strFilenameIn, std::string strMagicMessageIn)
     {
-        pathDB = gArgs.GetDataDirNet() / strFilenameIn;
+        pathDB = GetDataDir() / strFilenameIn;
         strFilename = strFilenameIn;
         strMagicMessage = strMagicMessageIn;
     }

@@ -27,7 +27,7 @@ import struct
 import time
 
 from test_framework.crypto.siphash import siphash256
-from test_framework.util import assert_equal
+from test_framework.util import hex_str_to_bytes, assert_equal
 
 import dash_hash
 
@@ -37,7 +37,7 @@ MY_SUBVERSION = "/python-p2p-tester:0.0.3%s/"
 MY_RELAY = 1 # from version 70001 onwards, fRelay should be appended to version messages (BIP37)
 
 MAX_LOCATOR_SZ = 101
-MAX_BLOCK_SIZE = 2000000
+MAX_BLOCK_SIZE = 1000000
 MAX_BLOOM_FILTER_SIZE = 36000
 MAX_BLOOM_HASH_FUNCS = 50
 
@@ -59,8 +59,6 @@ NODE_HEADERS_COMPRESSED = (1 << 11)
 MSG_TX = 1
 MSG_BLOCK = 2
 MSG_FILTERED_BLOCK = 3
-MSG_GOVERNANCE_OBJECT = 17
-MSG_GOVERNANCE_OBJECT_VOTE = 18
 MSG_CMPCT_BLOCK = 20
 MSG_TYPE_MASK = 0xffffffff >> 2
 
@@ -216,7 +214,7 @@ def from_hex(obj, hex_string):
     Note that there is no complementary helper like e.g. `to_hex` for the
     inverse operation. To serialize a message object to a hex string, simply
     use obj.serialize().hex()"""
-    obj.deserialize(BytesIO(bytes.fromhex(hex_string)))
+    obj.deserialize(BytesIO(hex_str_to_bytes(hex_string)))
     return obj
 
 
@@ -352,8 +350,6 @@ class CInv:
         MSG_TX: "TX",
         MSG_BLOCK: "Block",
         MSG_FILTERED_BLOCK: "filtered Block",
-        MSG_GOVERNANCE_OBJECT: "Governance Object",
-        MSG_GOVERNANCE_OBJECT_VOTE: "Governance Vote",
         MSG_CMPCT_BLOCK: "CompactBlock",
     }
 
@@ -544,9 +540,6 @@ class CTransaction:
     def get_vsize(self):
         return len(self.serialize())
 
-    def get_weight(self):
-        return self.get_vsize()
-
     def __repr__(self):
         return "CTransaction(nVersion=%i vin=%s vout=%s nLockTime=%i)" \
                % (self.nVersion, repr(self.vin), repr(self.vout), self.nLockTime)
@@ -571,7 +564,7 @@ class CBlockHeader:
             self.calc_sha256()
 
     def set_null(self):
-        self.nVersion = 4
+        self.nVersion = 1
         self.hashPrevBlock = 0
         self.hashMerkleRoot = 0
         self.nTime = 0

@@ -271,12 +271,12 @@ static bool rest_block(const CoreContext& context,
         return RESTERR(req, HTTP_BAD_REQUEST, "Invalid hash: " + hashStr);
 
     CBlock block;
-    const CBlockIndex* pblockindex = nullptr;
-    const CBlockIndex* tip = nullptr;
-    ChainstateManager* maybe_chainman = GetChainman(context, req);
-    if (!maybe_chainman) return false;
-    ChainstateManager& chainman = *maybe_chainman;
+    CBlockIndex* pblockindex = nullptr;
+    CBlockIndex* tip = nullptr;
     {
+        ChainstateManager* maybe_chainman = GetChainman(context, req);
+        if (!maybe_chainman) return false;
+        ChainstateManager& chainman = *maybe_chainman;
         LOCK(cs_main);
         tip = chainman.ActiveChain().Tip();
         pblockindex = chainman.m_blockman.LookupBlockIndex(hash);
@@ -284,7 +284,7 @@ static bool rest_block(const CoreContext& context,
             return RESTERR(req, HTTP_NOT_FOUND, hashStr + " not found");
         }
 
-        if (chainman.m_blockman.IsBlockPruned(pblockindex))
+        if (IsBlockPruned(pblockindex))
             return RESTERR(req, HTTP_NOT_FOUND, hashStr + " not available (pruned data)");
 
         if (!ReadBlockFromDisk(block, pblockindex, Params().GetConsensus()))
@@ -311,7 +311,7 @@ static bool rest_block(const CoreContext& context,
     }
 
     case RetFormat::JSON: {
-        UniValue objBlock = blockToJSON(chainman.m_blockman, block, tip, pblockindex, *llmq::chainLocksHandler, *llmq::quorumInstantSendManager, showTxDetails);
+        UniValue objBlock = blockToJSON(block, tip, pblockindex, *llmq::chainLocksHandler, *llmq::quorumInstantSendManager, showTxDetails);
         std::string strJSON = objBlock.write() + "\n";
         req->WriteHeader("Content-Type", "application/json");
         req->WriteReply(HTTP_OK, strJSON);
@@ -346,8 +346,7 @@ static bool rest_chaininfo(const CoreContext& context, HTTPRequest* req, const s
 
     switch (rf) {
     case RetFormat::JSON: {
-        JSONRPCRequest jsonRequest;
-        jsonRequest.context = context;
+        JSONRPCRequest jsonRequest(context);
         jsonRequest.params = UniValue(UniValue::VARR);
         UniValue chainInfoObject = getblockchaininfo().HandleRequest(jsonRequest);
         std::string strJSON = chainInfoObject.write() + "\n";
@@ -725,7 +724,7 @@ static const struct {
 void StartREST(const CoreContext& context)
 {
     for (const auto& up : uri_prefixes) {
-        auto handler = [context, up](HTTPRequest* req, const std::string& prefix) { return up.handler(context, req, prefix); };
+        auto handler = [&context, up](HTTPRequest* req, const std::string& prefix) { return up.handler(context, req, prefix); };
         RegisterHTTPHandler(up.prefix, false, handler);
     }
 }

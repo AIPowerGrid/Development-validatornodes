@@ -200,7 +200,7 @@ static bool getScriptFromDescriptor(const std::string& descriptor, CScript& scri
         FlatSigningProvider provider;
         std::vector<CScript> scripts;
         if (!desc->Expand(0, key_provider, scripts, provider)) {
-            throw JSONRPCError(RPC_INVALID_ADDRESS_OR_KEY, "Cannot derive script without private keys");
+            throw JSONRPCError(RPC_INVALID_ADDRESS_OR_KEY, strprintf("Cannot derive script without private keys"));
         }
 
         // Combo descriptors can have 2 or 4 scripts, so we can't just check scripts.size() == 1
@@ -416,24 +416,17 @@ static RPCHelpMan generateblock()
     };
 }
 #else
-static RPCHelpMan generatetoaddress()
+static UniValue generatetoaddress(const JSONRPCRequest& request)
 {
-    return RPCHelpMan{"generatetoaddress", "This call is not available because RPC miner isn't compiled", {}, {}, RPCExamples{""}, [&](const RPCHelpMan& self, const JSONRPCRequest& request) -> UniValue {
-        throw JSONRPCError(RPC_METHOD_NOT_FOUND, "This call is not available because RPC miner isn't compiled");
-    }};
+    throw JSONRPCError(RPC_METHOD_NOT_FOUND, "This call is not available because RPC miner isn't compiled");
 }
-
-static RPCHelpMan generatetodescriptor()
+static UniValue generatetodescriptor(const JSONRPCRequest& request)
 {
-    return RPCHelpMan{"generatetodescriptor", "This call is not available because RPC miner isn't compiled", {}, {}, RPCExamples{""}, [&](const RPCHelpMan& self, const JSONRPCRequest& request) -> UniValue {
-        throw JSONRPCError(RPC_METHOD_NOT_FOUND, "This call is not available because RPC miner isn't compiled");
-    }};
+    throw JSONRPCError(RPC_METHOD_NOT_FOUND, "This call is not available because RPC miner isn't compiled");
 }
-static RPCHelpMan generateblock()
+static UniValue generateblock(const JSONRPCRequest& request)
 {
-    return RPCHelpMan{"generateblock", "This call is not available because RPC miner isn't compiled", {}, {}, RPCExamples{""}, [&](const RPCHelpMan& self, const JSONRPCRequest& request) -> UniValue {
-        throw JSONRPCError(RPC_METHOD_NOT_FOUND, "This call is not available because RPC miner isn't compiled");
-    }};
+    throw JSONRPCError(RPC_METHOD_NOT_FOUND, "This call is not available because RPC miner isn't compiled");
 }
 #endif // ENABLE_MINER
 
@@ -441,7 +434,11 @@ static RPCHelpMan generate()
 {
     return RPCHelpMan{"generate", "has been replaced by the -generate cli option. Refer to -help for more information.", {}, {}, RPCExamples{""}, [&](const RPCHelpMan& self, const JSONRPCRequest& request) -> UniValue {
 
+    if (request.fHelp) {
+        throw std::runtime_error(self.ToString());
+    } else {
         throw JSONRPCError(RPC_METHOD_NOT_FOUND, self.ToString());
+    }
     }};
 }
 
@@ -579,10 +576,8 @@ static RPCHelpMan getblocktemplate()
                 },
                 "\"template_request\""},
         },
-        {
-            RPCResult{"If the proposal was accepted with mode=='proposal'", RPCResult::Type::NONE, "", ""},
-            RPCResult{"If the proposal was not accepted with mode=='proposal'", RPCResult::Type::STR, "", "According to BIP22"},
-            RPCResult{"Otherwise", RPCResult::Type::OBJ, "", "",
+        RPCResult{
+            RPCResult::Type::OBJ, "", "",
             {
                 {RPCResult::Type::ARR, "capabilities", "specific client side supported features",
                     {
@@ -657,7 +652,6 @@ static RPCHelpMan getblocktemplate()
                 {RPCResult::Type::BOOL, "superblocks_enabled", "true, if superblock payments are enabled"},
                 {RPCResult::Type::STR_HEX, "coinbase_payload", "coinbase transaction payload data encoded in hexadecimal"},
             }},
-        },
         RPCExamples{
             HelpExampleCli("getblocktemplate", "")
     + HelpExampleRpc("getblocktemplate", "")
@@ -1022,10 +1016,7 @@ static RPCHelpMan submitblock()
             {"hexdata", RPCArg::Type::STR_HEX, RPCArg::Optional::NO, "the hex-encoded block data to submit"},
             {"dummy", RPCArg::Type::STR, /* default */ "ignored", "dummy value, for compatibility with BIP22. This value is ignored."},
         },
-        {
-            RPCResult{"If the block was accepted", RPCResult::Type::NONE, "", ""},
-            RPCResult{"Otherwise", RPCResult::Type::STR, "", "According to BIP22"},
-        },
+        RPCResult{RPCResult::Type::NONE, "", "Returns JSON Null when valid, a string according to BIP22 otherwise"},
         RPCExamples{
             HelpExampleCli("submitblock", "\"mydata\"")
     + HelpExampleRpc("submitblock", "\"mydata\"")
@@ -1308,30 +1299,29 @@ void RegisterMiningRPCCommands(CRPCTable &t)
 {
 // clang-format off
 static const CRPCCommand commands[] =
-{ //  category               actor (function)
-  //  ---------------------  -----------------------
-    { "mining",              &getnetworkhashps,        },
-    { "mining",              &getmininginfo,           },
-    { "mining",              &prioritisetransaction,   },
-    { "mining",              &getblocktemplate,        },
-    { "mining",              &submitblock,             },
-    { "mining",              &submitheader,            },
+{ //  category              name                      actor (function)         argNames
+  //  --------------------- ------------------------  -----------------------  ----------
+    { "mining",             "getnetworkhashps",       &getnetworkhashps,       {"nblocks","height"} },
+    { "mining",             "getmininginfo",          &getmininginfo,          {} },
+    { "mining",             "prioritisetransaction",  &prioritisetransaction,  {"txid","fee_delta"} },
+    { "mining",             "getblocktemplate",       &getblocktemplate,       {"template_request"} },
+    { "mining",             "submitblock",            &submitblock,            {"hexdata","dummy"} },
+    { "mining",             "submitheader",           &submitheader,           {"hexdata"} },
 
 #if ENABLE_MINER
-    { "generating",          &generatetoaddress,       },
-    { "generating",          &generatetodescriptor,    },
-    { "generating",          &generateblock,           },
+    { "generating",         "generatetoaddress",      &generatetoaddress,      {"nblocks","address","maxtries"} },
+    { "generating",         "generatetodescriptor",   &generatetodescriptor,   {"num_blocks","descriptor","maxtries"} },
+    { "generating",         "generateblock",          &generateblock,          {"output","transactions"} },
 #else
-// Hidden as it isn't functional, just an error to let people know if miner isn't compiled
-    { "hidden",              &generatetoaddress,       },
-    { "hidden",              &generatetodescriptor,    },
-    { "hidden",              &generateblock,           },
+    { "hidden",             "generatetoaddress",      &generatetoaddress,      {"nblocks","address","maxtries"} }, // Hidden as it isn't functional, just an error to let people know if miner isn't compiled
+    { "hidden",             "generatetodescriptor",   &generatetodescriptor,   {"num_blocks","descriptor","maxtries"} },
+    { "hidden",             "generateblock",          &generateblock,          {"address","transactions"} },
 #endif // ENABLE_MINER
 
-    { "util",                &estimatesmartfee,        },
+    { "util",               "estimatesmartfee",       &estimatesmartfee,       {"conf_target", "estimate_mode"} },
 
-    { "hidden",              &estimaterawfee,          },
-    { "hidden",              &generate,                },
+    { "hidden",             "estimaterawfee",         &estimaterawfee,         {"conf_target", "threshold"} },
+    { "hidden",             "generate",               &generate,               {} },
 };
 // clang-format on
     for (const auto& c : commands) {

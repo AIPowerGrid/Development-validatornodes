@@ -24,7 +24,7 @@ const std::string CLIENT_NAME("Dash Core");
 #endif
 
 //! git will put "#define ARCHIVE_GIT_DESCRIPTION ..." on the next line inside archives. 
-#define ARCHIVE_GIT_DESCRIPTION "v21.1.0-431-ge3a5afd6a605"
+#define ARCHIVE_GIT_DESCRIPTION "v21.1.0"
 
 #if CLIENT_VERSION_IS_RELEASE
     #define BUILD_DESC "v" PACKAGE_VERSION

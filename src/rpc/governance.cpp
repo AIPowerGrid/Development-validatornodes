@@ -144,7 +144,7 @@ static RPCHelpMan gobject_prepare()
     std::shared_ptr<CWallet> const wallet = GetWalletForJSONRPCRequest(request);
     if (!wallet) return NullUniValue;
 
-    EnsureWalletIsUnlocked(*wallet);
+    EnsureWalletIsUnlocked(wallet.get());
 
     // ASSEMBLE NEW GOVERNANCE OBJECT FROM USER PARAMETERS
 
@@ -253,7 +253,7 @@ static RPCHelpMan gobject_list_prepared()
 {
     std::shared_ptr<CWallet> const wallet = GetWalletForJSONRPCRequest(request);
     if (!wallet) return NullUniValue;
-    EnsureWalletIsUnlocked(*wallet);
+    EnsureWalletIsUnlocked(wallet.get());
 
     int64_t nCount = request.params.empty() ? 10 : ParseInt64V(request.params[0], "count");
     if (nCount < 0) {
@@ -404,37 +404,7 @@ static RPCHelpMan gobject_submit()
     };
 }
 
-#ifdef ENABLE_WALLET
-static bool SignVote(const CWallet& wallet, const CKeyID& keyID, CGovernanceVote& vote)
-{
-    // Special implementation for testnet (Harden Spork6 that has not been deployed to other networks)
-    if (Params().NetworkIDString() == CBaseChainParams::TESTNET) {
-        std::vector<unsigned char> signature;
-        if (!wallet.SignSpecialTxPayload(vote.GetSignatureHash(), keyID, signature)) {
-            LogPrintf("SignVote -- SignHash() failed\n");
-            return false;
-        }
-        vote.SetSignature(signature);
-        return true;
-    } // end of testnet implementation
-
-    std::string strMessage{vote.GetSignatureString()};
-    std::string signature;
-    SigningResult err = wallet.SignMessage(strMessage, PKHash{keyID}, signature);
-    if (err != SigningResult::OK) {
-        LogPrintf("SignVote failed due to: %s\n", SigningResultString(err));
-        return false;
-    }
-    bool failed = true;
-    const auto decoded = DecodeBase64(signature, &failed);
-    CHECK_NONFATAL(!failed); // DecodeBase64 should not fail
-
-    vote.SetSignature(std::vector<unsigned char>(decoded.data(), decoded.data() + decoded.size()));
-    return true;
-}
-
-static UniValue VoteWithMasternodes(const JSONRPCRequest& request, const CWallet& wallet,
-                             const std::map<uint256, CKeyID>& votingKeys,
+static UniValue VoteWithMasternodes(const JSONRPCRequest& request, const std::map<uint256, CKey>& keys,
                              const uint256& hash, vote_signal_enum_t eVoteSignal,
                              vote_outcome_enum_t eVoteOutcome)
 {
@@ -455,9 +425,9 @@ static UniValue VoteWithMasternodes(const JSONRPCRequest& request, const CWallet
 
     UniValue resultsObj(UniValue::VOBJ);
 
-    for (const auto& p : votingKeys) {
+    for (const auto& p : keys) {
         const auto& proTxHash = p.first;
-        const auto& keyID = p.second;
+        const auto& key = p.second;
 
         UniValue statusObj(UniValue::VOBJ);
 
@@ -471,8 +441,7 @@ static UniValue VoteWithMasternodes(const JSONRPCRequest& request, const CWallet
         }
 
         CGovernanceVote vote(dmn->collateralOutpoint, hash, eVoteSignal, eVoteOutcome);
-
-        if (!SignVote(wallet, keyID, vote) || !vote.CheckSignature(keyID)) {
+        if (!vote.Sign(key, key.GetPubKey().GetID())) {
             nFailed++;
             statusObj.pushKV("result", "failed");
             statusObj.pushKV("errorMessage", "Failure to sign.");
@@ -502,14 +471,7 @@ static UniValue VoteWithMasternodes(const JSONRPCRequest& request, const CWallet
     return returnObj;
 }
 
-static bool CheckWalletOwnsKey(const CWallet& wallet, const CKeyID& keyid)
-{
-    const CScript script{GetScriptForDestination(PKHash(keyid))};
-    LOCK(wallet.cs_wallet);
-
-    return wallet.IsMine(script) == isminetype::ISMINE_SPENDABLE;
-}
-
+#ifdef ENABLE_WALLET
 static RPCHelpMan gobject_vote_many()
 {
     return RPCHelpMan{"gobject vote-many",
@@ -546,19 +508,24 @@ static RPCHelpMan gobject_vote_many()
         throw JSONRPCError(RPC_INVALID_PARAMETER, "Invalid vote outcome. Please use one of the following: 'yes', 'no' or 'abstain'");
     }
 
-    EnsureWalletIsUnlocked(*wallet);
+    EnsureWalletIsUnlocked(wallet.get());
 
-    std::map<uint256, CKeyID> votingKeys;
+    LegacyScriptPubKeyMan* spk_man = wallet->GetLegacyScriptPubKeyMan();
+    if (!spk_man) {
+        throw JSONRPCError(RPC_WALLET_ERROR, "This type of wallet does not support this command");
+    }
+
+    std::map<uint256, CKey> votingKeys;
 
     auto mnList = node.dmnman->GetListAtChainTip();
     mnList.ForEachMN(true, [&](auto& dmn) {
-        const bool is_mine = CheckWalletOwnsKey(*wallet, dmn.pdmnState->keyIDVoting);
-        if (is_mine) {
-            votingKeys.emplace(dmn.proTxHash, dmn.pdmnState->keyIDVoting);
+        CKey votingKey;
+        if (spk_man->GetKey(dmn.pdmnState->keyIDVoting, votingKey)) {
+            votingKeys.emplace(dmn.proTxHash, votingKey);
         }
     });
 
-    return VoteWithMasternodes(request, *wallet, votingKeys, hash, eVoteSignal, eVoteOutcome);
+    return VoteWithMasternodes(request, votingKeys, hash, eVoteSignal, eVoteOutcome);
 },
     };
 }
@@ -600,7 +567,7 @@ static RPCHelpMan gobject_vote_alias()
         throw JSONRPCError(RPC_INVALID_PARAMETER, "Invalid vote outcome. Please use one of the following: 'yes', 'no' or 'abstain'");
     }
 
-    EnsureWalletIsUnlocked(*wallet);
+    EnsureWalletIsUnlocked(wallet.get());
 
     uint256 proTxHash(ParseHashV(request.params[3], "protx-hash"));
     auto dmn = node.dmnman->GetListAtChainTip().GetValidMN(proTxHash);
@@ -608,16 +575,20 @@ static RPCHelpMan gobject_vote_alias()
         throw JSONRPCError(RPC_INVALID_PARAMETER, "Invalid or unknown proTxHash");
     }
 
+    LegacyScriptPubKeyMan* spk_man = wallet->GetLegacyScriptPubKeyMan();
+    if (!spk_man) {
+        throw JSONRPCError(RPC_WALLET_ERROR, "This type of wallet does not support this command");
+    }
 
-    const bool is_mine = CheckWalletOwnsKey(*wallet, dmn->pdmnState->keyIDVoting);
-    if (!is_mine) {
+    CKey votingKey;
+    if (!spk_man->GetKey(dmn->pdmnState->keyIDVoting, votingKey)) {
         throw JSONRPCError(RPC_INVALID_PARAMETER, strprintf("Private key for voting address %s not known by wallet", EncodeDestination(PKHash(dmn->pdmnState->keyIDVoting))));
     }
 
-    std::map<uint256, CKeyID> votingKeys;
-    votingKeys.emplace(proTxHash, dmn->pdmnState->keyIDVoting);
+    std::map<uint256, CKey> votingKeys;
+    votingKeys.emplace(proTxHash, votingKey);
 
-    return VoteWithMasternodes(request, *wallet, votingKeys, hash, eVoteSignal, eVoteOutcome);
+    return VoteWithMasternodes(request, votingKeys, hash, eVoteSignal, eVoteOutcome);
 },
     };
 }
@@ -1086,30 +1057,31 @@ void RegisterGovernanceRPCCommands(CRPCTable &t)
 {
 // clang-format off
 static const CRPCCommand commands[] =
-{ //  category              actor (function)
-  //  --------------------- -----------------------
+{ //  category              name                      actor (function)         argNames
+  //  --------------------- ------------------------  -----------------------  ----------
     /* Dash features */
-    { "dash",               &getgovernanceinfo,         },
-    { "dash",               &getsuperblockbudget,       },
-    { "dash",               &gobject,                   },
-    { "dash",               &gobject_count,             },
-    { "dash",               &gobject_deserialize,       },
-    { "dash",               &gobject_check,             },
+    { "dash",               "getgovernanceinfo",          &getgovernanceinfo,       {} },
+    { "dash",               "getsuperblockbudget",        &getsuperblockbudget,     {"index"} },
+    { "dash",               "gobject",                    &gobject,                 {"command"} },
+    { "dash",               "gobject", "count",           &gobject_count,           {"mode"} },
+    { "dash",               "gobject", "deserialize",     &gobject_deserialize,     {"hex_data"} },
+    { "dash",               "gobject", "check",           &gobject_check,           {"hex_data"} },
 #ifdef ENABLE_WALLET
-    { "dash",               &gobject_prepare,           },
-    { "dash",               &gobject_list_prepared,     },
-    { "dash",               &gobject_vote_many,         },
-    { "dash",               &gobject_vote_alias,        },
+    { "dash",               "gobject", "prepare",         &gobject_prepare,         {"parent-hash", "revision", "time", "data-hex", "use-IS", "outputHash", "outputIndex"} },
+    { "dash",               "gobject", "list-prepared",   &gobject_list_prepared,   {"count"} },
+    { "dash",               "gobject", "vote-many",       &gobject_vote_many,       {"governance-hash", "vote", "vote-outcome"} },
+    { "dash",               "gobject", "vote-alias",      &gobject_vote_alias,      {"governance-hash", "vote", "vote-outcome", "protx-hash"} },
 #endif
-    { "dash",               &gobject_submit,            },
-    { "dash",               &gobject_list,              },
-    { "dash",               &gobject_diff,              },
-    { "dash",               &gobject_get,               },
-    { "dash",               &gobject_getcurrentvotes,   },
-    { "dash",               &voteraw,                   },
+    { "dash",               "gobject", "submit",          &gobject_submit,          {"parent-hash", "revision", "time", "data-hex", "fee-txid"} },
+    { "dash",               "gobject", "list",            &gobject_list,            {"signal", "type"} },
+    { "dash",               "gobject", "diff",            &gobject_diff,            {"signal", "type"} },
+    { "dash",               "gobject", "get",             &gobject_get,             {"governance-hash"} },
+    { "dash",               "gobject", "getcurrentvotes", &gobject_getcurrentvotes, {"governance-hash", "txid", "vout"} },
+    { "dash",               "voteraw",                    &voteraw,                 {"mn-collateral-tx-hash","mn-collateral-tx-index","governance-hash","vote-signal","vote-outcome","time","vote-sig"} },
+
 };
 // clang-format on
     for (const auto& command : commands) {
-        t.appendCommand(command.name, &command);
+        t.appendCommand(command.name, command.subname, &command);
     }
 }

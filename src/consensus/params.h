@@ -14,12 +14,8 @@
 
 namespace Consensus {
 
-/**
- * A buried deployment is one where the height of the activation has been hardcoded into
- * the client implementation long after the consensus change has activated. See BIP 90.
- */
-enum BuriedDeployment : int16_t {
-    // buried deployments get negative values to avoid overlap with DeploymentPos
+enum BuriedDeployment : int16_t
+{
     DEPLOYMENT_HEIGHTINCB = std::numeric_limits<int16_t>::min(),
     DEPLOYMENT_DERSIG,
     DEPLOYMENT_CLTV,
@@ -33,27 +29,28 @@ enum BuriedDeployment : int16_t {
     DEPLOYMENT_BRR,
     DEPLOYMENT_V19,
 };
-constexpr bool ValidDeployment(BuriedDeployment dep) { return dep <= DEPLOYMENT_V19; }
+constexpr bool ValidDeployment(BuriedDeployment dep) { return DEPLOYMENT_HEIGHTINCB <= dep && dep <= DEPLOYMENT_V19; }
 
-enum DeploymentPos : uint16_t {
+enum DeploymentPos : uint16_t
+{
     DEPLOYMENT_TESTDUMMY,
     DEPLOYMENT_V20,     // Deployment of EHF, LLMQ Randomness Beacon
     DEPLOYMENT_MN_RR,   // Deployment of Masternode Reward Location Reallocation
     // NOTE: Also add new deployments to VersionBitsDeploymentInfo in deploymentinfo.cpp
     MAX_VERSION_BITS_DEPLOYMENTS
 };
-constexpr bool ValidDeployment(DeploymentPos dep) { return dep < MAX_VERSION_BITS_DEPLOYMENTS; }
+constexpr bool ValidDeployment(DeploymentPos dep) { return DEPLOYMENT_TESTDUMMY <= dep && dep <= DEPLOYMENT_MN_RR; }
 
 /**
  * Struct for each individual consensus rule change using BIP9.
  */
 struct BIP9Deployment {
     /** Bit position to select the particular bit in nVersion. */
-    int bit{28};
+    int bit;
     /** Start MedianTime for version bits miner confirmation. Can be a date in the past */
-    int64_t nStartTime{NEVER_ACTIVE};
+    int64_t nStartTime;
     /** Timeout/expiry MedianTime for the deployment attempt. */
-    int64_t nTimeout{NEVER_ACTIVE};
+    int64_t nTimeout;
     /** If lock in occurs, delay activation until at least this block
      *  height.  Note that activation will only occur on a retarget
      *  boundary.

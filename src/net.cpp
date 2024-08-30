@@ -16,8 +16,7 @@
 #include <clientversion.h>
 #include <compat.h>
 #include <consensus/consensus.h>
-#include <kawpow/sha256.h>
-#include <fs.h>
+#include <crypto/sha256.h>
 #include <i2p.h>
 #include <net_permissions.h>
 #include <netaddress.h>
@@ -33,6 +32,7 @@
 #include <util/time.h>
 #include <util/translation.h>
 #include <util/wpipe.h>
+#include <validation.h> // for fDIP0001ActiveAtTip
 
 #include <masternode/meta.h>
 #include <masternode/sync.h>
@@ -229,13 +229,15 @@ static std::vector<CAddress> ConvertSeeds(const std::vector<uint8_t> &vSeedsIn)
 // Otherwise, return the unroutable 0.0.0.0 but filled in with
 // the normal parameters, since the IP may be changed to a useful
 // one by discovery.
-CService GetLocalAddress(const CNetAddr& addrPeer)
+CAddress GetLocalAddress(const CNetAddr *paddrPeer, ServiceFlags nLocalServices)
 {
-    CService ret{CNetAddr(), GetListenPort()};
+    CAddress ret(CService(CNetAddr(),GetListenPort()), nLocalServices);
     CService addr;
-    if (GetLocal(addr, &addrPeer)) {
-        ret = CService{addr};
+    if (GetLocal(addr, paddrPeer))
+    {
+        ret = CAddress(addr, nLocalServices);
     }
+    ret.nTime = GetAdjustedTime();
     return ret;
 }
 
@@ -254,35 +256,35 @@ bool IsPeerAddrLocalGood(CNode *pnode)
            IsReachable(addrLocal.GetNetwork());
 }
 
-std::optional<CService> GetLocalAddrForPeer(CNode& node)
+std::optional<CAddress> GetLocalAddrForPeer(CNode *pnode)
 {
-    CService addrLocal{GetLocalAddress(node.addr)};
+    CAddress addrLocal = GetLocalAddress(&pnode->addr, pnode->GetLocalServices());
     if (gArgs.GetBoolArg("-addrmantest", false)) {
         // use IPv4 loopback during addrmantest
-        addrLocal = CService(LookupNumeric("127.0.0.1", GetListenPort()));
+        addrLocal = CAddress(CService(LookupNumeric("127.0.0.1", GetListenPort())), pnode->GetLocalServices());
     }
     // If discovery is enabled, sometimes give our peer the address it
     // tells us that it sees us as in case it has a better idea of our
     // address than we do.
     FastRandomContext rng;
-    if (IsPeerAddrLocalGood(&node) && (!addrLocal.IsRoutable() ||
+    if (IsPeerAddrLocalGood(pnode) && (!addrLocal.IsRoutable() ||
          rng.randbits((GetnScore(addrLocal) > LOCAL_MANUAL) ? 3 : 1) == 0))
     {
-        if (node.IsInboundConn()) {
+        if (pnode->IsInboundConn()) {
             // For inbound connections, assume both the address and the port
             // as seen from the peer.
-            addrLocal = CService{node.GetAddrLocal()};
+            addrLocal = CAddress{pnode->GetAddrLocal(), addrLocal.nServices};
         } else {
             // For outbound connections, assume just the address as seen from
             // the peer and leave the port in `addrLocal` as returned by
             // `GetLocalAddress()` above. The peer has no way to observe our
             // listening port when we have initiated the connection.
-            addrLocal.SetIP(node.GetAddrLocal());
+            addrLocal.SetIP(pnode->GetAddrLocal());
         }
     }
     if (addrLocal.IsRoutable() || gArgs.GetBoolArg("-addrmantest", false))
     {
-        LogPrint(BCLog::NET, "Advertising address %s to peer=%d\n", addrLocal.ToString(), node.GetId());
+        LogPrint(BCLog::NET, "Advertising address %s to peer=%d\n", addrLocal.ToString(), pnode->GetId());
         return addrLocal;
     }
     // Address is unroutable. Don't advertise.
@@ -607,6 +609,7 @@ CNode* CConnman::ConnectNode(CAddress addrConnect, const char *pszDest, bool fCo
         addr_bind = GetBindAddress(*sock);
     }
     CNode* pnode = new CNode(id,
+                             nLocalServices,
                              std::move(sock),
                              addrConnect,
                              CalculateKeyedNetGroup(addrConnect),
@@ -729,6 +732,7 @@ Network CNode::ConnectedThroughNetwork() const
 void CNode::CopyStats(CNodeStats& stats)
 {
     stats.nodeid = this->GetId();
+    X(nServices);
     X(addr);
     X(addrBind);
     stats.m_network = ConnectedThroughNetwork();
@@ -781,7 +785,8 @@ void CNode::CopyStats(CNodeStats& stats)
 bool CNode::ReceiveMsgBytes(Span<const uint8_t> msg_bytes, bool& complete)
 {
     complete = false;
-    const auto time = GetTime<std::chrono::microseconds>();
+    // TODO: use mocktime here after bitcoin#19499 is backported
+    const auto time = std::chrono::microseconds(GetTimeMicros());
     LOCK(cs_vRecv);
     m_last_recv = std::chrono::duration_cast<std::chrono::seconds>(time);
     nRecvBytes += msg_bytes.size();
@@ -1242,7 +1247,7 @@ bool CConnman::AttemptToEvictConnection()
 
             NodeEvictionCandidate candidate = {node->GetId(), node->m_connected, node->m_min_ping_time,
                                                node->m_last_block_time, node->m_last_tx_time,
-                                               node->m_has_all_wanted_services,
+                                               HasAllDesirableServiceFlags(node->nServices),
                                                node->m_relays_txs.load(), node->m_bloom_filter_loaded.load(),
                                                node->nKeyedNetGroup, node->m_prefer_evict, node->addr.IsLocal(),
                                                node->ConnectedThroughNetwork()};
@@ -1399,6 +1404,7 @@ void CConnman::CreateNodeFromAcceptedSocket(std::unique_ptr<Sock>&& sock,
 
     const bool inbound_onion = std::find(m_onion_binds.begin(), m_onion_binds.end(), addr_bind) != m_onion_binds.end();
     CNode* pnode = new CNode(id,
+                             nodeServices,
                              std::move(sock),
                              addr,
                              CalculateKeyedNetGroup(addr),
@@ -1412,7 +1418,7 @@ void CConnman::CreateNodeFromAcceptedSocket(std::unique_ptr<Sock>&& sock,
     // If this flag is present, the user probably expect that RPC and QT report it as whitelisted (backward compatibility)
     pnode->m_legacyWhitelisted = legacyWhitelisted;
     pnode->m_prefer_evict = discouraged;
-    m_msgproc->InitializeNode(*pnode, nodeServices);
+    m_msgproc->InitializeNode(pnode);
 
     {
         LOCK(pnode->m_sock_mutex);
@@ -1561,11 +1567,21 @@ void CConnman::DisconnectNodes()
         for (auto it = m_nodes_disconnected.begin(); it != m_nodes_disconnected.end(); )
         {
             CNode* pnode = *it;
-            // Destroy the object only after other threads have stopped using it.
+            // wait until threads are done using it
+            bool fDelete = false;
             if (pnode->GetRefCount() <= 0) {
-                it = m_nodes_disconnected.erase(it);
-                DeleteNode(pnode);
-            } else {
+                {
+                    TRY_LOCK(pnode->cs_vSend, lockSend);
+                    if (lockSend) {
+                        fDelete = true;
+                    }
+                }
+                if (fDelete) {
+                    it = m_nodes_disconnected.erase(it);
+                    DeleteNode(pnode);
+                }
+            }
+            if (!fDelete) {
                 ++it;
             }
         }
@@ -1629,11 +1645,10 @@ void CConnman::CalculateNumConnectionsChangedStats()
             for (const mapMsgTypeSize::value_type &i : pnode->mapSendBytesPerMsgType)
                 mapSentBytesMsgStats[i.first] += i.second;
         }
-        if (pnode->m_bloom_filter_loaded.load()) {
+        if(pnode->fClient)
             spvNodes++;
-        } else {
+        else
             fullNodes++;
-        }
         if(pnode->IsInboundConn())
             inboundNodes++;
         else
@@ -2559,14 +2574,12 @@ void CConnman::ThreadOpenConnections(const std::vector<std::string> connect, CDe
         // This is only done for mainnet and testnet
         int nOutboundFullRelay = 0;
         int nOutboundBlockRelay = 0;
-        int nOutboundOnionRelay = 0;
         std::set<std::vector<unsigned char> > setConnected;
         if (!Params().AllowMultipleAddressesFromGroup()) {
             LOCK(m_nodes_mutex);
             for (const CNode* pnode : m_nodes) {
                 if (pnode->IsFullOutboundConn() && !pnode->m_masternode_connection) nOutboundFullRelay++;
                 if (pnode->IsBlockOnlyConn()) nOutboundBlockRelay++;
-                if (pnode->IsFullOutboundConn() && pnode->ConnectedThroughNetwork() == Network::NET_ONION) nOutboundOnionRelay++;
 
                 // Netgroups for inbound and manual peers are not excluded because our goal here
                 // is to not use multiple of our limited outbound slots on a single netgroup
@@ -2601,7 +2614,6 @@ void CConnman::ThreadOpenConnections(const std::vector<std::string> connect, CDe
         auto now = GetTime<std::chrono::microseconds>();
         bool anchor = false;
         bool fFeeler = false;
-        bool onion_only = false;
 
         // Determine what type of connection to open. Opening
         // BLOCK_RELAY connections to addresses from anchors.dat gets the highest
@@ -2651,8 +2663,6 @@ void CConnman::ThreadOpenConnections(const std::vector<std::string> connect, CDe
             next_feeler = PoissonNextSend(now, FEELER_INTERVAL);
             conn_type = ConnectionType::FEELER;
             fFeeler = true;
-        } else if (nOutboundOnionRelay < m_max_outbound_onion && IsReachable(Network::NET_ONION)) {
-            onion_only = true;
         } else {
             // skip to next iteration of while loop
             continue;
@@ -2735,7 +2745,6 @@ void CConnman::ThreadOpenConnections(const std::vector<std::string> connect, CDe
 
             if (!IsReachable(addr))
                 continue;
-            if (onion_only && !addr.IsTor()) continue;
 
             // only consider very recently tried nodes after 30 failed attempts
             if (nANow - addr_last_try < 600 && nTries < 30)
@@ -3124,7 +3133,7 @@ void CConnman::OpenNetworkConnection(const CAddress& addrConnect, bool fCountFai
         mapSocketToNode.emplace(pnode->m_sock->Get(), pnode);
     }
 
-    m_msgproc->InitializeNode(*pnode, nLocalServices);
+    m_msgproc->InitializeNode(pnode);
     {
         LOCK(m_nodes_mutex);
         m_nodes.push_back(pnode);
@@ -3461,7 +3470,7 @@ bool CConnman::Start(CDeterministicMNManager& dmnman, CMasternodeMetaMan& mn_met
 
     Proxy i2p_sam;
     if (GetProxy(NET_I2P, i2p_sam) && connOptions.m_i2p_accept_incoming) {
-        m_i2p_sam_session = std::make_unique<i2p::sam::Session>(gArgs.GetDataDirNet() / "i2p_private_key",
+        m_i2p_sam_session = std::make_unique<i2p::sam::Session>(GetDataDir() / "i2p_private_key",
                                                                 i2p_sam.proxy, &interruptNet);
     }
 
@@ -3471,7 +3480,7 @@ bool CConnman::Start(CDeterministicMNManager& dmnman, CMasternodeMetaMan& mn_met
 
     if (m_use_addrman_outgoing) {
         // Load addresses from anchors.dat
-        m_anchors = ReadAnchors(gArgs.GetDataDirNet() / ANCHORS_DATABASE_FILENAME);
+        m_anchors = ReadAnchors(GetDataDir() / ANCHORS_DATABASE_FILENAME);
         if (m_anchors.size() > MAX_BLOCK_RELAY_ONLY_ANCHORS) {
             m_anchors.resize(MAX_BLOCK_RELAY_ONLY_ANCHORS);
         }
@@ -3634,7 +3643,7 @@ void CConnman::StopNodes()
             if (anchors_to_dump.size() > MAX_BLOCK_RELAY_ONLY_ANCHORS) {
                 anchors_to_dump.resize(MAX_BLOCK_RELAY_ONLY_ANCHORS);
             }
-            DumpAnchors(gArgs.GetDataDirNet() / ANCHORS_DATABASE_FILENAME, anchors_to_dump);
+            DumpAnchors(GetDataDir() / ANCHORS_DATABASE_FILENAME, anchors_to_dump);
         }
     }
 
@@ -3943,10 +3952,6 @@ size_t CConnman::GetMaxOutboundNodeCount()
 {
     return m_max_outbound;
 }
-size_t CConnman::GetMaxOutboundOnionNodeCount()
-{
-    return m_max_outbound_onion;
-}
 
 void CConnman::GetNodeStats(std::vector<CNodeStats>& vstats) const
 {
@@ -4078,7 +4083,7 @@ bool CConnman::OutboundTargetReached(bool historicalBlockServingLimit) const
     {
         // keep a large enough buffer to at least relay each block once
         const std::chrono::seconds timeLeftInCycle = GetMaxOutboundTimeLeftInCycle_();
-        const uint64_t buffer = timeLeftInCycle / std::chrono::minutes{10} * MaxBlockSize();
+        const uint64_t buffer = timeLeftInCycle / std::chrono::minutes{10} * MaxBlockSize(fDIP0001ActiveAtTip);
         if (buffer >= nMaxOutboundLimit || nMaxOutboundTotalBytesSentInCycle >= nMaxOutboundLimit - buffer)
             return true;
     }
@@ -4118,6 +4123,7 @@ ServiceFlags CConnman::GetLocalServices() const
 unsigned int CConnman::GetReceiveFloodSize() const { return nReceiveFloodSize; }
 
 CNode::CNode(NodeId idIn,
+             ServiceFlags nLocalServicesIn,
              std::shared_ptr<Sock> sock,
              const CAddress& addrIn,
              uint64_t nKeyedNetGroupIn,
@@ -4139,6 +4145,7 @@ CNode::CNode(NodeId idIn,
       id{idIn},
       nLocalHostNonce{nLocalHostNonceIn},
       m_conn_type{conn_type_in},
+      nLocalServices{nLocalServicesIn},
       m_i2p_sam_session{std::move(i2p_sam_session)}
 {
     if (inbound_onion) assert(conn_type_in == ConnectionType::INBOUND);
@@ -4307,7 +4314,7 @@ void CaptureMessageToFile(const CAddress& addr,
     std::string clean_addr = addr.ToString();
     std::replace(clean_addr.begin(), clean_addr.end(), ':', '_');
 
-    fs::path base_path = gArgs.GetDataDirNet() / "message_capture" / clean_addr;
+    fs::path base_path = GetDataDir() / "message_capture" / clean_addr;
     fs::create_directories(base_path);
 
     fs::path path = base_path / (is_incoming ? "msgs_recv.dat" : "msgs_sent.dat");

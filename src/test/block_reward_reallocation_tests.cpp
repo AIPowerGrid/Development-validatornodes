@@ -15,12 +15,18 @@
 #include <script/sign.h>
 #include <script/signingprovider.h>
 #include <script/standard.h>
+#include <spork.h>
 #include <validation.h>
 
 #include <evo/deterministicmns.h>
 #include <evo/mnhftx.h>
 #include <evo/providertx.h>
 #include <evo/specialtx.h>
+#include <governance/governance.h>
+#include <llmq/blockprocessor.h>
+#include <llmq/chainlocks.h>
+#include <llmq/context.h>
+#include <llmq/instantsend.h>
 #include <masternode/payments.h>
 #include <util/enumerate.h>
 #include <util/irange.h>
@@ -35,11 +41,7 @@ using SimpleUTXOMap = std::map<COutPoint, std::pair<int, CAmount>>;
 struct TestChainBRRBeforeActivationSetup : public TestChainSetup
 {
     // Force fast DIP3 activation
-    TestChainBRRBeforeActivationSetup() :
-        TestChainSetup(497, {"-dip3params=30:50", "-testactivationheight=brr@1000",
-                             "-vbparams=mn_rr:0:999999999999:0:20:16:12:5:1"})
-    {
-    }
+    TestChainBRRBeforeActivationSetup() : TestChainSetup(497, {"-dip3params=30:50", "-vbparams=mn_rr:0:999999999999:0:20:16:12:5:1"}) {}
 };
 
 static SimpleUTXOMap BuildSimpleUtxoMap(const std::vector<CTransactionRef>& txs)

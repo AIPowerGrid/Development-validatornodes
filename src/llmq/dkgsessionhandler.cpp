@@ -570,7 +570,7 @@ void CDKGSessionHandler::HandleDKGRound()
 
     auto finalCommitments = curSession->FinalizeCommitments();
     for (const auto& fqc : finalCommitments) {
-        quorumBlockProcessor.AddMineableCommitmentAndRelay(fqc);
+        quorumBlockProcessor.AddMineableCommitment(fqc);
     }
 }
 

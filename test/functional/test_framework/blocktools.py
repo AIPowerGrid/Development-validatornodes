@@ -4,6 +4,7 @@
 # file COPYING or http://www.opensource.org/licenses/mit-license.php.
 """Utilities for manipulating blocks and transactions."""
 
+from binascii import a2b_hex
 from decimal import Decimal
 import io
 import struct
@@ -23,10 +24,10 @@ from .messages import (
     uint256_to_string,
 )
 from .script import CScript, CScriptNum, CScriptOp, OP_TRUE, OP_CHECKSIG
-from .util import assert_equal
+from .util import assert_equal, hex_str_to_bytes
 from io import BytesIO
 
-MAX_BLOCK_SIGOPS = 40000
+MAX_BLOCK_SIGOPS = 20000
 
 # Genesis block time (regtest)
 TIME_GENESIS_BLOCK = 1417713337
@@ -36,18 +37,16 @@ COINBASE_MATURITY = 100
 
 NORMAL_GBT_REQUEST_PARAMS = {"rules": []} # type: ignore[var-annotated]
 
-VERSIONBITS_LAST_OLD_BLOCK_VERSION = 4
-
 def create_block(hashprev=None, coinbase=None, ntime=None, *, version=None, tmpl=None, txlist=None, dip4_activated=False, v20_activated=False):
     """Create a block (with regtest difficulty)."""
     block = CBlock()
     if tmpl is None:
         tmpl = {}
-    block.nVersion = version or tmpl.get('version') or VERSIONBITS_LAST_OLD_BLOCK_VERSION
+    block.nVersion = version or tmpl.get('version') or 1
     block.nTime = ntime or tmpl.get('curtime') or int(time.time() + 600)
     block.hashPrevBlock = hashprev or int(tmpl['previousblockhash'], 0x10)
     if tmpl and not tmpl.get('bits') is None:
-        block.nBits = struct.unpack('>I', bytes.fromhex(tmpl['bits']))[0]
+        block.nBits = struct.unpack('>I', a2b_hex(tmpl['bits']))[0]
     else:
         block.nBits = 0x207fffff  # difficulty retargeting is disabled in REGTEST chainparams
     if coinbase is None:
@@ -209,7 +208,7 @@ def create_transaction(node, txid, to_address, *, amount):
     """
     raw_tx = create_raw_transaction(node, txid, to_address, amount=amount)
     tx = CTransaction()
-    tx.deserialize(BytesIO(bytes.fromhex(raw_tx)))
+    tx.deserialize(BytesIO(hex_str_to_bytes(raw_tx)))
     return tx
 
 def create_raw_transaction(node, txid, to_address, *, amount):
@@ -254,13 +253,12 @@ def filter_tip_keys(chaintips):
     return filtered_tips
 
 # Identical to GetMasternodePayment in C++ code
-# TODO: remove it or make **proper** tests for various height
 def get_masternode_payment(nHeight, blockValue, fV20Active):
     ret = int(blockValue / 5)
 
     nMNPIBlock = 350
     nMNPIPeriod = 10
-    nReallocActivationHeight = 1
+    nReallocActivationHeight = 2500
 
     if nHeight > nMNPIBlock:
         ret += int(blockValue / 20)
@@ -285,7 +283,7 @@ def get_masternode_payment(nHeight, blockValue, fV20Active):
         # Block Reward Realocation is not activated yet, nothing to do
         return ret
 
-    nSuperblockCycle = 20
+    nSuperblockCycle = 10
     # Actual realocation starts in the cycle next to one activation happens in
     nReallocStart = nReallocActivationHeight - nReallocActivationHeight % nSuperblockCycle + nSuperblockCycle
 

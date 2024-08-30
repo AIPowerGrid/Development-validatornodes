@@ -8,7 +8,6 @@
 #include <random.h>
 #include <test/util/setup_common.h>
 #include <validation.h>
-#include <util/translation.h>
 #include <wallet/coincontrol.h>
 #include <wallet/coinselection.h>
 #include <wallet/test/wallet_test_fixture.h>
@@ -62,7 +61,7 @@ static void add_coin(std::vector<COutput>& coins, CWallet& wallet, const CAmount
     tx.vout[nInput].nValue = nValue;
     if (spendable) {
         CTxDestination dest;
-        bilingual_str error;
+        std::string error;
         const bool destination_ok = wallet.GetNewDestination("", dest, error);
         assert(destination_ok);
         tx.vout[nInput].scriptPubKey = GetScriptForDestination(dest);
@@ -260,7 +259,8 @@ BOOST_AUTO_TEST_CASE(bnb_search_test)
     {
         std::unique_ptr<CWallet> wallet = std::make_unique<CWallet>(m_node.chain.get(), /* coinjoin_loader = */ nullptr, "", CreateMockWalletDatabase());
         wallet->SetupLegacyScriptPubKeyMan();
-        wallet->LoadWallet();
+        bool firstRun;
+        wallet->LoadWallet(firstRun);
         LOCK(wallet->cs_wallet);
 
         bool bnb_used;
@@ -283,7 +283,8 @@ BOOST_AUTO_TEST_CASE(bnb_search_test)
 
     {
         std::unique_ptr<CWallet> wallet = std::make_unique<CWallet>(m_node.chain.get(), /* coinjoin_loader = */ nullptr, "", CreateMockWalletDatabase());
-        wallet->LoadWallet();
+        bool firstRun;
+        wallet->LoadWallet(firstRun);
         wallet->SetupLegacyScriptPubKeyMan();
         LOCK(wallet->cs_wallet);
 
@@ -308,7 +309,8 @@ BOOST_AUTO_TEST_CASE(bnb_search_test)
 BOOST_AUTO_TEST_CASE(knapsack_solver_test)
 {
     std::unique_ptr<CWallet> wallet = std::make_unique<CWallet>(m_node.chain.get(), /* coinjoin_loader = */ nullptr, "", CreateMockWalletDatabase());
-    wallet->LoadWallet();
+    bool firstRun;
+    wallet->LoadWallet(firstRun);
     wallet->SetupLegacyScriptPubKeyMan();
     LOCK(wallet->cs_wallet);
 
@@ -589,7 +591,8 @@ BOOST_AUTO_TEST_CASE(knapsack_solver_test)
 BOOST_AUTO_TEST_CASE(ApproximateBestSubset)
 {
     std::unique_ptr<CWallet> wallet = std::make_unique<CWallet>(m_node.chain.get(), /* coinjoin_loader = */ nullptr, "", CreateMockWalletDatabase());
-    wallet->LoadWallet();
+    bool firstRun;
+    wallet->LoadWallet(firstRun);
     wallet->SetupLegacyScriptPubKeyMan();
     LOCK(wallet->cs_wallet);
 
@@ -612,7 +615,8 @@ BOOST_AUTO_TEST_CASE(ApproximateBestSubset)
 BOOST_AUTO_TEST_CASE(SelectCoins_test)
 {
     std::unique_ptr<CWallet> wallet = std::make_unique<CWallet>(m_node.chain.get(), /* coinjoin_loader = */ nullptr, "", CreateMockWalletDatabase());
-    wallet->LoadWallet();
+    bool firstRun;
+    wallet->LoadWallet(firstRun);
     wallet->SetupLegacyScriptPubKeyMan();
     LOCK(wallet->cs_wallet);
 

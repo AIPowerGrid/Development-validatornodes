@@ -4,7 +4,6 @@
 
 #include <test/fuzz/fuzz.h>
 
-#include <fs.h>
 #include <netaddress.h>
 #include <netbase.h>
 #include <test/util/setup_common.h>
@@ -14,10 +13,9 @@
 
 #include <csignal>
 #include <cstdint>
-#include <exception>
-#include <fstream>
-#include <memory>
 #include <string>
+#include <exception>
+#include <memory>
 #include <unistd.h>
 #include <vector>
 
@@ -61,7 +59,7 @@ void initialize()
     }
     if (const char* out_path = std::getenv("WRITE_ALL_FUZZ_TARGETS_AND_ABORT")) {
         std::cout << "Writing all fuzz target names to '" << out_path << "'." << std::endl;
-        std::ofstream out_stream{out_path, std::ios::binary};
+        std::ofstream out_stream(out_path, std::ios::binary);
         for (const auto& t : FuzzTargets()) {
             if (std::get<2>(t.second)) continue;
             out_stream << t.first << std::endl;

@@ -5,12 +5,11 @@
 #include <bench/bench.h>
 
 #include <chainparams.h>
-#include <fs.h>
 #include <test/util/setup_common.h>
 #include <validation.h>
 
 #include <algorithm>
-#include <fstream>
+#include <assert.h>
 #include <iostream>
 #include <regex>
 
@@ -18,19 +17,20 @@ const std::function<void(const std::string&)> G_TEST_LOG_FUN{};
 
 namespace {
 
-void GenerateTemplateResults(const std::vector<ankerl::nanobench::Result>& benchmarkResults, const fs::path& file, const char* tpl)
+void GenerateTemplateResults(const std::vector<ankerl::nanobench::Result>& benchmarkResults, const std::string& filename, const char* tpl)
 {
-    if (benchmarkResults.empty() || file.empty()) {
+    if (benchmarkResults.empty() || filename.empty()) {
         // nothing to write, bail out
         return;
     }
-    std::ofstream fout{file};
+    std::ofstream fout(filename);
     if (fout.is_open()) {
         ankerl::nanobench::render(tpl, benchmarkResults, fout);
-        std::cout << "Created " << file << std::endl;
     } else {
-        std::cout << "Could not write to file " << file << std::endl;
+        std::cout << "Could write to file '" << filename << "'" << std::endl;
     }
+
+    std::cout << "Created '" << filename << "'" << std::endl;
 }
 
 } // namespace

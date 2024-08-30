@@ -388,11 +388,10 @@ void GovernanceList::showProposalContextMenu(const QPoint& pos)
     }
 
     // right click menu with option to open proposal url
-    QString proposal_url = proposal->url();
-    proposal_url.replace(QChar('&'), QString("&&"));
-
+    QAction* openProposalUrl = new QAction(proposal->url(), this);
     proposalContextMenu->clear();
-    proposalContextMenu->addAction(proposal_url, proposal, &Proposal::openUrl);
+    proposalContextMenu->addAction(openProposalUrl);
+    connect(openProposalUrl, &QAction::triggered, proposal, &Proposal::openUrl);
     proposalContextMenu->exec(QCursor::pos());
 }
 

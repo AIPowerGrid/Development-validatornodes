@@ -22,10 +22,7 @@ from test_framework.blocktools import (
 from test_framework.messages import CTransaction
 from test_framework.script import CScript
 from test_framework.test_framework import BitcoinTestFramework
-from test_framework.util import (
-    assert_equal,
-    assert_raises_rpc_error,
-)
+from test_framework.util import assert_equal, assert_raises_rpc_error
 
 NULLDUMMY_ERROR = "non-mandatory-script-verify-flag (Dummy CHECKMULTISIG argument must be zero)"
 
@@ -47,12 +44,7 @@ class NULLDUMMYTest(BitcoinTestFramework):
         # Need two nodes so GBT (getblocktemplate) doesn't complain that it's not connected.
         self.num_nodes = 2
         self.setup_clean_chain = True
-        self.extra_args = [[
-            '-whitelist=127.0.0.1',
-            '-dip3params=105:105',
-            f'-testactivationheight=bip147@{COINBASE_MATURITY + 5}',
-            '-par=1',  # Use only one script thread to get the exact reject reason for testing
-        ]] * 2
+        self.extra_args = [['-whitelist=127.0.0.1', '-dip3params=105:105', '-bip147height=105']] * 2
 
     def skip_test_if_missing_module(self):
         self.skip_if_no_wallet()
@@ -65,7 +57,7 @@ class NULLDUMMYTest(BitcoinTestFramework):
         self.pubkey = w0.getaddressinfo(self.address)['pubkey']
         self.ms_address = wmulti.addmultisigaddress(1, [self.pubkey])['address']
         if not self.options.descriptors:
-            # Legacy wallets need to import these so that they are watched by the wallet. This is unnecessary (and does not need to be tested) for descriptor wallets
+            # Legacy wallets need to import these so that they are watched by the wallet. This is unnecssary (and does not need to be tested) for descriptor wallets
             wmulti.importaddress(self.ms_address)
 
         self.coinbase_blocks = self.nodes[0].generate(2)  # block height = 2
@@ -82,7 +74,7 @@ class NULLDUMMYTest(BitcoinTestFramework):
         txid1 = self.nodes[0].sendrawtransaction(test1txs[0].serialize().hex(), 0)
         test1txs.append(create_transaction(self.nodes[0], txid1, self.ms_address, amount=48))
         txid2 = self.nodes[0].sendrawtransaction(test1txs[1].serialize().hex(), 0)
-        self.block_submit(self.nodes[0], test1txs, accept=True)
+        self.block_submit(self.nodes[0], test1txs, True)
 
         self.log.info("Test 2: Non-NULLDUMMY base multisig transaction should not be accepted to mempool before activation")
         test2tx = create_transaction(self.nodes[0], txid2, self.ms_address, amount=47)
@@ -90,22 +82,22 @@ class NULLDUMMYTest(BitcoinTestFramework):
         assert_raises_rpc_error(-26, NULLDUMMY_ERROR, self.nodes[0].sendrawtransaction, test2tx.serialize().hex(), 0)
 
         self.log.info(f"Test 3: Non-NULLDUMMY base transactions should be accepted in a block before activation [{COINBASE_MATURITY + 4}]")
-        self.block_submit(self.nodes[0], [test2tx], accept=True)
+        self.block_submit(self.nodes[0], [test2tx], True)
 
         self.log.info("Test 4: Non-NULLDUMMY base multisig transaction is invalid after activation")
         test4tx = create_transaction(self.nodes[0], test2tx.hash, self.address, amount=46)
         test6txs=[CTransaction(test4tx)]
         trueDummy(test4tx)
         assert_raises_rpc_error(-26, NULLDUMMY_ERROR, self.nodes[0].sendrawtransaction, test4tx.serialize().hex(), 0)
-        self.block_submit(self.nodes[0], [test4tx], accept=False)
+        self.block_submit(self.nodes[0], [test4tx])
 
         self.log.info(f"Test 6: NULLDUMMY compliant base/witness transactions should be accepted to mempool and in block after activation [{COINBASE_MATURITY + 5}]")
         for i in test6txs:
             self.nodes[0].sendrawtransaction(i.serialize().hex(), 0)
-        self.block_submit(self.nodes[0], test6txs, accept=True)
+        self.block_submit(self.nodes[0], test6txs, True)
 
 
-    def block_submit(self, node, txs, *, accept=False):
+    def block_submit(self, node, txs, accept = False):
         dip4_activated = self.lastblockheight + 1 >= COINBASE_MATURITY + 5
         tmpl = node.getblocktemplate(NORMAL_GBT_REQUEST_PARAMS)
         assert_equal(tmpl['previousblockhash'], self.lastblockhash)
@@ -117,8 +109,8 @@ class NULLDUMMYTest(BitcoinTestFramework):
         block.hashMerkleRoot = block.calc_merkle_root()
         block.rehash()
         block.solve()
-        assert_equal(None if accept else NULLDUMMY_ERROR, node.submitblock(block.serialize().hex()))
-        if accept:
+        assert_equal(None if accept else 'block-validation-failed', node.submitblock(block.serialize().hex()))
+        if (accept):
             assert_equal(node.getbestblockhash(), block.hash)
             self.lastblockhash = block.hash
             self.lastblocktime += 1

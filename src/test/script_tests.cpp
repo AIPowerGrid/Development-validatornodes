@@ -20,8 +20,7 @@
 #include <script/bitcoinconsensus.h>
 #endif
 
-#include <cstdint>
-#include <fstream>
+#include <stdint.h>
 #include <string>
 #include <vector>
 
@@ -880,7 +879,7 @@ BOOST_AUTO_TEST_CASE(script_build)
     }
 
 #ifdef UPDATE_JSON_TESTS
-    FILE* file = fsbridge::fopen("script_tests.json.gen", "w");
+    FILE* file = fopen("script_tests.json.gen", "w");
     fputs(strGen.c_str(), file);
     fclose(file);
 #endif

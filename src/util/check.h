@@ -33,11 +33,11 @@ class NonFatalCheckError : public std::runtime_error
     do {                                                          \
         if (!(condition)) {                                       \
             throw NonFatalCheckError(                             \
-                strprintf("Internal bug detected: '%s'\n"         \
-                          "%s:%d (%s)\n"                          \
+                strprintf("%s:%d (%s)\n"                          \
+                          "Internal bug detected: '%s'\n"         \
                           "You may report this issue here: %s\n", \
-                    (#condition),                                 \
                     __FILE__, __LINE__, __func__,                 \
+                    (#condition),                                 \
                     PACKAGE_BUGREPORT));                          \
         }                                                         \
     } while (false)

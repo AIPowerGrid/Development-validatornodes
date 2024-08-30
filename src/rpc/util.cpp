@@ -476,7 +476,6 @@ std::string RPCResults::ToDescriptionString() const
 {
     std::string result;
     for (const auto& r : m_results) {
-        if (r.m_type == RPCResult::Type::ANY) continue; // for testing only
         if (r.m_cond.empty()) {
             result += "\nResult:\n";
         } else {
@@ -492,21 +491,6 @@ std::string RPCResults::ToDescriptionString() const
 std::string RPCExamples::ToDescriptionString() const
 {
     return m_examples.empty() ? m_examples : "\nExamples:\n" + m_examples;
-}
-
-UniValue RPCHelpMan::HandleRequest(const JSONRPCRequest& request) const
-{
-    if (request.mode == JSONRPCRequest::GET_ARGS) {
-        return GetArgMap();
-    }
-    /*
-     * Check if the given request is valid according to this command or if
-     * the user is asking for help information, and throw help when appropriate.
-     */
-    if (request.mode == JSONRPCRequest::GET_HELP || !IsValidNumArgs(request.params.size())) {
-        throw std::runtime_error(ToString());
-    }
-    return m_fun(*this, request);
 }
 
 bool RPCHelpMan::IsValidNumArgs(size_t num_args) const
@@ -580,25 +564,6 @@ std::string RPCHelpMan::ToString() const
     ret += m_examples.ToDescriptionString();
 
     return ret;
-}
-
-UniValue RPCHelpMan::GetArgMap() const
-{
-    UniValue arr{UniValue::VARR};
-    for (int i{0}; i < int(m_args.size()); ++i) {
-        const auto& arg = m_args.at(i);
-        std::vector<std::string> arg_names = SplitString(arg.m_names, '|');
-        for (const auto& arg_name : arg_names) {
-            UniValue map{UniValue::VARR};
-            map.push_back(m_name);
-            map.push_back(i);
-            map.push_back(arg_name);
-            map.push_back(arg.m_type == RPCArg::Type::STR ||
-                          arg.m_type == RPCArg::Type::STR_HEX);
-            arr.push_back(map);
-        }
-    }
-    return arr;
 }
 
 std::string RPCArg::GetFirstName() const
@@ -711,9 +676,6 @@ void RPCResult::ToSections(Sections& sections, const OuterType outer_type, const
         sections.PushSection({indent + "..." + maybe_separator, m_description});
         return;
     }
-    case Type::ANY: {
-        CHECK_NONFATAL(false); // Only for testing
-    }
     case Type::NONE: {
         sections.PushSection({indent + "null" + maybe_separator, Description("json null")});
         return;
@@ -774,42 +736,6 @@ void RPCResult::ToSections(Sections& sections, const OuterType outer_type, const
         }
         sections.PushSection({indent + "}" + maybe_separator, ""});
         return;
-    }
-    } // no default case, so the compiler can warn about missing cases
-    CHECK_NONFATAL(false);
-}
-
-bool RPCResult::MatchesType(const UniValue& result) const
-{
-    switch (m_type) {
-    case Type::ELISION: {
-        return false;
-    }
-    case Type::ANY: {
-        return true;
-    }
-    case Type::NONE: {
-        return UniValue::VNULL == result.getType();
-    }
-    case Type::STR:
-    case Type::STR_HEX: {
-        return UniValue::VSTR == result.getType();
-    }
-    case Type::NUM:
-    case Type::STR_AMOUNT:
-    case Type::NUM_TIME: {
-        return UniValue::VNUM == result.getType();
-    }
-    case Type::BOOL: {
-        return UniValue::VBOOL == result.getType();
-    }
-    case Type::ARR_FIXED:
-    case Type::ARR: {
-        return UniValue::VARR == result.getType();
-    }
-    case Type::OBJ_DYN:
-    case Type::OBJ: {
-        return UniValue::VOBJ == result.getType();
     }
     } // no default case, so the compiler can warn about missing cases
     CHECK_NONFATAL(false);

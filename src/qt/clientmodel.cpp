@@ -9,7 +9,6 @@
 #include <qt/guiconstants.h>
 #include <qt/guiutil.h>
 #include <qt/peertablemodel.h>
-#include <qt/peertablesortproxy.h>
 
 #include <evo/deterministicmns.h>
 
@@ -43,11 +42,7 @@ ClientModel::ClientModel(interfaces::Node& node, OptionsModel *_optionsModel, QO
 {
     cachedBestHeaderHeight = -1;
     cachedBestHeaderTime = -1;
-
     peerTableModel = new PeerTableModel(m_node, this);
-    m_peer_table_sort_proxy = new PeerTableSortProxy(this);
-    m_peer_table_sort_proxy->setSourceModel(peerTableModel);
-
     banTableModel = new BanTableModel(m_node, this);
     mnListCached = std::make_shared<CDeterministicMNList>();
 
@@ -224,11 +219,6 @@ PeerTableModel *ClientModel::getPeerTableModel()
     return peerTableModel;
 }
 
-PeerTableSortProxy* ClientModel::peerTableSortProxy()
-{
-    return m_peer_table_sort_proxy;
-}
-
 BanTableModel *ClientModel::getBanTableModel()
 {
     return banTableModel;
@@ -256,7 +246,7 @@ QString ClientModel::formatClientStartupTime() const
 
 QString ClientModel::dataDir() const
 {
-    return GUIUtil::PathToQString(gArgs.GetDataDirNet());
+    return GUIUtil::PathToQString(GetDataDir());
 }
 
 QString ClientModel::blocksDir() const

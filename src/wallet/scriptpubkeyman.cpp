@@ -15,7 +15,7 @@
 #include <util/translation.h>
 #include <wallet/scriptpubkeyman.h>
 
-bool LegacyScriptPubKeyMan::GetNewDestination(CTxDestination& dest, bilingual_str& error)
+bool LegacyScriptPubKeyMan::GetNewDestination(CTxDestination& dest, std::string& error)
 {
     LOCK(cs_KeyStore);
     error.clear();
@@ -23,7 +23,7 @@ bool LegacyScriptPubKeyMan::GetNewDestination(CTxDestination& dest, bilingual_st
     // Generate a new key that is added to wallet
     CPubKey new_key;
     if (!GetKeyFromPool(new_key, false)) {
-        error = _("Error: Keypool ran out, please call keypoolrefill first");
+        error = _("Error: Keypool ran out, please call keypoolrefill first").translated;
         return false;
     }
     //LearnRelatedScripts(new_key);
@@ -77,7 +77,7 @@ bool HaveKeys(const std::vector<valtype>& pubkeys, const LegacyScriptPubKeyMan& 
 //! Recursively solve script and return spendable/watchonly/invalid status.
 //!
 //! @param keystore            legacy key and script store
-//! @param scriptPubKey        script to solve
+//! @param script              script to solve
 //! @param sigversion          script type (top-level / redeemscript)
 //! @param recurse_scripthash  whether to recurse into nested p2sh
 //!                            scripts or simply treat any script that has been
@@ -268,21 +268,17 @@ bool LegacyScriptPubKeyMan::Encrypt(const CKeyingMaterial& master_key, WalletBat
     }
 
     if (!hdChainCurrent.IsNull()) {
-        bool res = EncryptHDChain(master_key, m_hd_chain);
-        assert(res);
-        res = LoadHDChain(m_hd_chain);
-        assert(res);
+        assert(EncryptHDChain(master_key, m_hd_chain));
+        assert(LoadHDChain(m_hd_chain));
 
         CHDChain hdChainCrypted;
-        res = GetHDChain(hdChainCrypted);
-        assert(res);
+        assert(GetHDChain(hdChainCrypted));
 
         // ids should match, seed hashes should not
         assert(hdChainCurrent.GetID() == hdChainCrypted.GetID());
         assert(hdChainCurrent.GetSeedHash() != hdChainCrypted.GetSeedHash());
 
-        res = AddHDChain(*encrypted_batch, hdChainCrypted);
-        assert(res);
+        assert(AddHDChain(*encrypted_batch, hdChainCrypted));
     }
 
     encrypted_batch = nullptr;
@@ -699,7 +695,7 @@ bool LegacyScriptPubKeyMan::CanProvide(const CScript& script, SignatureData& sig
     }
 }
 
-bool LegacyScriptPubKeyMan::SignTransaction(CMutableTransaction& tx, const std::map<COutPoint, Coin>& coins, int sighash, std::map<int, bilingual_str>& input_errors) const
+bool LegacyScriptPubKeyMan::SignTransaction(CMutableTransaction& tx, const std::map<COutPoint, Coin>& coins, int sighash, std::map<int, std::string>& input_errors) const
 {
     return ::SignTransaction(tx, this, coins, sighash, input_errors);
 }
@@ -1765,11 +1761,11 @@ bool LegacyScriptPubKeyMan::GetHDChain(CHDChain& hdChainRet) const
 
 void LegacyScriptPubKeyMan::SetInternal(bool internal) {}
 
-bool DescriptorScriptPubKeyMan::GetNewDestination(CTxDestination& dest, bilingual_str& error)
+bool DescriptorScriptPubKeyMan::GetNewDestination(CTxDestination& dest, std::string& error)
 {
     // Returns true if this descriptor supports getting new addresses. Conditions where we may be unable to fetch them (e.g. locked) are caught later
     if (!CanGetAddresses(m_internal)) {
-        error = _("No addresses available");
+        error = "No addresses available";
         return false;
     }
     {
@@ -1783,12 +1779,12 @@ bool DescriptorScriptPubKeyMan::GetNewDestination(CTxDestination& dest, bilingua
         std::vector<CScript> scripts_temp;
         if (m_wallet_descriptor.range_end <= m_max_cached_index && !TopUp(1)) {
             // We can't generate anymore keys
-            error = _("Error: Keypool ran out, please call keypoolrefill first");
+            error = "Error: Keypool ran out, please call keypoolrefill first";
             return false;
         }
         if (!m_wallet_descriptor.descriptor->ExpandFromCache(m_wallet_descriptor.next_index, m_wallet_descriptor.cache, scripts_temp, out_keys)) {
             // We can't generate anymore keys
-            error = _("Error: Keypool ran out, please call keypoolrefill first");
+            error = "Error: Keypool ran out, please call keypoolrefill first";
             return false;
         }
         const OutputType type{OutputType::LEGACY};
@@ -1871,7 +1867,7 @@ bool DescriptorScriptPubKeyMan::Encrypt(const CKeyingMaterial& master_key, Walle
 bool DescriptorScriptPubKeyMan::GetReservedDestination(bool internal, CTxDestination& address, int64_t& index, CKeyPool& keypool)
 {
     LOCK(cs_desc_man);
-    bilingual_str error;
+    std::string error;
     bool result = GetNewDestination(address, error);
     index = m_wallet_descriptor.next_index - 1;
     return result;
@@ -2171,7 +2167,7 @@ bool DescriptorScriptPubKeyMan::CanProvide(const CScript& script, SignatureData&
     return IsMine(script);
 }
 
-bool DescriptorScriptPubKeyMan::SignTransaction(CMutableTransaction& tx, const std::map<COutPoint, Coin>& coins, int sighash, std::map<int, bilingual_str>& input_errors) const
+bool DescriptorScriptPubKeyMan::SignTransaction(CMutableTransaction& tx, const std::map<COutPoint, Coin>& coins, int sighash, std::map<int, std::string>& input_errors) const
 {
     std::unique_ptr<FlatSigningProvider> keys = std::make_unique<FlatSigningProvider>();
     for (const auto& coin_pair : coins) {

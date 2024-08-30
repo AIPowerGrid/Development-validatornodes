@@ -48,6 +48,7 @@ from .util import (
     force_finish_mnsync,
     get_bip9_details,
     get_datadir_path,
+    hex_str_to_bytes,
     initialize_datadir,
     p2p_port,
     set_node_times,
@@ -912,13 +913,12 @@ class BitcoinTestFramework(metaclass=BitcoinTestMetaClass):
             # This is needed so that we are out of IBD when the test starts,
             # see the tip age check in IsInitialBlockDownload().
             self.set_genesis_mocktime()
-            gen_addresses = [k.address for k in TestNode.PRIV_KEYS][:3] + [ADDRESS_BCRT1_P2SH_OP_TRUE]
-            assert_equal(len(gen_addresses), 4)
+            gen_addresses = [k.address for k in TestNode.PRIV_KEYS] + [ADDRESS_BCRT1_P2SH_OP_TRUE]
             for i in range(8):
                 self.bump_mocktime((25 if i != 7 else 24) * 156)
                 cache_node.generatetoaddress(
                     nblocks=25 if i != 7 else 24,
-                    address=gen_addresses[i % len(gen_addresses)],
+                    address=gen_addresses[i % 4],
                 )
 
             assert_equal(cache_node.getblockchaininfo()["blocks"], 199)
@@ -1078,6 +1078,9 @@ class DashTestFramework(BitcoinTestFramework):
             for i in range(0, num_nodes):
                 self.extra_args[i].append("-dip3params=30:50")
 
+        # make sure to activate dip8 after prepare_masternodes has finished its job already
+        self.set_dash_dip8_activation(200)
+
         # LLMQ default test params (no need to pass -llmqtestparams)
         self.llmq_size = 3
         self.llmq_threshold = 2
@@ -1088,6 +1091,22 @@ class DashTestFramework(BitcoinTestFramework):
         # This is EXPIRATION_TIMEOUT + EXPIRATION_BIAS in CQuorumDataRequest
         self.quorum_data_request_expiration_timeout = 360
 
+    def set_dash_dip8_activation(self, activate_after_block):
+        self.dip8_activation_height = activate_after_block
+        for i in range(0, self.num_nodes):
+            self.extra_args[i].append("-dip8params=%d" % (activate_after_block))
+
+    def activate_dip8(self, slow_mode=False):
+        # NOTE: set slow_mode=True if you are activating dip8 after a huge reorg
+        # or nodes might fail to catch up otherwise due to a large
+        # (MAX_BLOCKS_IN_TRANSIT_PER_PEER = 16 blocks) reorg error.
+        self.log.info("Wait for dip0008 activation")
+        while self.nodes[0].getblockcount() < self.dip8_activation_height:
+            self.bump_mocktime(10)
+            self.nodes[0].generate(10)
+            if slow_mode:
+                self.sync_blocks()
+        self.sync_blocks()
 
     def activate_by_name(self, name, expected_activation_height=None):
         assert not softfork_active(self.nodes[0], name)
@@ -1576,7 +1595,7 @@ class DashTestFramework(BitcoinTestFramework):
 
         block_count = self.mninfo[0].node.getblockcount()
         cycle_hash = int(self.mninfo[0].node.getblockhash(block_count - (block_count % 24)), 16)
-        isdlock = msg_isdlock(1, inputs, tx.sha256, cycle_hash, bytes.fromhex(rec_sig['sig']))
+        isdlock = msg_isdlock(1, inputs, tx.sha256, cycle_hash, hex_str_to_bytes(rec_sig['sig']))
 
         return isdlock
 

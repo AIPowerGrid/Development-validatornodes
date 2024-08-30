@@ -1,13 +1,8 @@
 name: Check Merge Fast-Forward Only
 
-permissions:
-  pull-requests: write
-
 on:
   push:
-  pull_request_target:
-  pull_request_review:
-    types: [submitted]
+  pull_request:
 
 jobs:
   check_merge:
@@ -32,17 +27,3 @@ jobs:
           else
             git merge --ff-only ${{ github.sha }}
           fi
-
-      - name: add labels
-        uses: actions-ecosystem/action-add-labels@v1
-        if: failure()
-        with:
-          labels: |
-            needs rebase
-
-      - name: comment
-        uses: mshick/add-pr-comment@v2
-        if: failure()
-        with:
-          message: |
-            This pull request has conflicts, please rebase.

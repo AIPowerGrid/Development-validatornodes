@@ -173,14 +173,14 @@ CService LookupNumeric(const std::string& name, uint16_t portDefault = 0, DNSLoo
  * Parse and resolve a specified subnet string into the appropriate internal
  * representation.
  *
- * @param[in]  subnet_str  A string representation of a subnet of the form
- *                         `network address [ "/", ( CIDR-style suffix | netmask ) ]`
- *                         e.g. "2001:db8::/32", "192.0.2.0/255.255.255.0" or "8.8.8.8".
- * @param[out] subnet_out  Internal subnet representation, if parsable/resolvable
- *                         from `subnet_str`.
- * @returns whether the operation succeeded or not.
+ * @param strSubnet A string representation of a subnet of the form `network
+ *                address [ "/", ( CIDR-style suffix | netmask ) ]`(e.g.
+ *                `2001:db8::/32`, `192.0.2.0/255.255.255.0`, or `8.8.8.8`).
+ * @param ret The resulting internal representation of a subnet.
+ *
+ * @returns Whether the operation succeeded or not.
  */
-bool LookupSubNet(const std::string& subnet_str, CSubNet& subnet_out);
+bool LookupSubNet(const std::string& strSubnet, CSubNet& subnet, DNSLookupFn dns_lookup_function = g_dns_lookup);
 
 /**
  * Create a TCP socket in the given address family.
@@ -237,7 +237,7 @@ void InterruptSocks5(bool interrupt);
  * @param port The destination port.
  * @param auth The credentials with which to authenticate with the specified
  *             SOCKS5 proxy.
- * @param socket The SOCKS5 proxy socket.
+ * @param sock The SOCKS5 proxy socket.
  *
  * @returns Whether or not the operation succeeded.
  *

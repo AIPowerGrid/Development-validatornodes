@@ -79,15 +79,19 @@ void CDSNotificationInterface::UpdatedBlockTip(const CBlockIndex *pindexNew, con
     if (pindexNew == pindexFork) // blocks were disconnected without any new ones
         return;
 
-    m_mn_sync.UpdatedBlockTip(WITH_LOCK(::cs_main, return m_chainman.m_best_header), pindexNew, fInitialDownload);
+    m_mn_sync.UpdatedBlockTip(pindexNew, fInitialDownload);
+
+    // Update global DIP0001 activation status
+    fDIP0001ActiveAtTip = pindexNew->nHeight >= Params().GetConsensus().DIP0001Height;
 
     if (fInitialDownload)
         return;
 
     m_cj_ctx->dstxman->UpdatedBlockTip(pindexNew, *m_llmq_ctx->clhandler, m_mn_sync);
 #ifdef ENABLE_WALLET
-    m_cj_ctx->walletman->ForEachCJClientMan(
-        [&pindexNew](std::unique_ptr<CCoinJoinClientManager>& clientman) { clientman->UpdatedBlockTip(pindexNew); });
+    for (auto& pair : m_cj_ctx->walletman->raw()) {
+        pair.second->UpdatedBlockTip(pindexNew);
+    }
 #endif // ENABLE_WALLET
 
     m_llmq_ctx->isman->UpdatedBlockTip(pindexNew);

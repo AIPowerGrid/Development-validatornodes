@@ -13,7 +13,6 @@
 #include <validationinterface.h>
 #include <node/context.h>
 #include <node/transaction.h>
-#include <util/translation.h>
 
 #include <future>
 
@@ -29,7 +28,7 @@ static TransactionError HandleATMPError(const TxValidationState& state, std::str
     }
 }
 
-TransactionError BroadcastTransaction(NodeContext& node, const CTransactionRef tx, bilingual_str& err_string, const CAmount& max_tx_fee, bool relay, bool wait_callback, bool bypass_limits)
+TransactionError BroadcastTransaction(NodeContext& node, const CTransactionRef tx, std::string& err_string, const CAmount& max_tx_fee, bool relay, bool wait_callback, bool bypass_limits)
 {
     // BroadcastTransaction can be called by either sendrawtransaction RPC or wallet RPCs.
     // node.peerman is assigned both before chain clients and before RPC server is accepting calls,
@@ -60,7 +59,7 @@ TransactionError BroadcastTransaction(NodeContext& node, const CTransactionRef t
             const MempoolAcceptResult result = AcceptToMemoryPool(node.chainman->ActiveChainstate(), *node.mempool, tx,
                                                                   bypass_limits, true /* test_accept */);
             if (result.m_result_type != MempoolAcceptResult::ResultType::VALID) {
-                return HandleATMPError(result.m_state, err_string.original);
+                return HandleATMPError(result.m_state, err_string);
             } else if (result.m_base_fees.value() > max_tx_fee) {
                 return TransactionError::MAX_FEE_EXCEEDED;
             }
@@ -69,7 +68,7 @@ TransactionError BroadcastTransaction(NodeContext& node, const CTransactionRef t
         const MempoolAcceptResult result = AcceptToMemoryPool(node.chainman->ActiveChainstate(), *node.mempool, tx,
                                                               bypass_limits, false /* test_accept */);
         if (result.m_result_type != MempoolAcceptResult::ResultType::VALID) {
-            return HandleATMPError(result.m_state, err_string.original);
+            return HandleATMPError(result.m_state, err_string);
         }
 
         // Transaction was accepted to the mempool.

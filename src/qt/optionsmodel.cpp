@@ -224,8 +224,6 @@ void OptionsModel::Init(bool resetSettings)
     // CoinJoin
     if (!settings.contains("nCoinJoinSessions"))
         settings.setValue("nCoinJoinSessions", DEFAULT_COINJOIN_SESSIONS);
-    if (!gArgs.SoftSetArg("-coinjoinsessions", settings.value("nCoinJoinSessions").toString().toStdString()))
-        addOverriddenOption("-coinjoinsessions");
 
     if (!settings.contains("nCoinJoinRounds"))
         settings.setValue("nCoinJoinRounds", DEFAULT_COINJOIN_ROUNDS);
@@ -249,13 +247,9 @@ void OptionsModel::Init(bool resetSettings)
 
     if (!settings.contains("nCoinJoinDenomsGoal"))
         settings.setValue("nCoinJoinDenomsGoal", DEFAULT_COINJOIN_DENOMS_GOAL);
-    if (!gArgs.SoftSetArg("-coinjoindenomsgoal", settings.value("nCoinJoinDenomsGoal").toString().toStdString()))
-        addOverriddenOption("-coinjoindenomsgoal");
 
     if (!settings.contains("nCoinJoinDenomsHardCap"))
         settings.setValue("nCoinJoinDenomsHardCap", DEFAULT_COINJOIN_DENOMS_HARDCAP);
-    if (!gArgs.SoftSetArg("-coinjoindenomshardcap", settings.value("nCoinJoinDenomsHardCap").toString().toStdString()))
-        addOverriddenOption("-coinjoindenomshardcap");
 #endif
 
     // Network
@@ -332,7 +326,7 @@ void OptionsModel::Reset()
     QSettings settings;
 
     // Backup old settings to chain-specific datadir for troubleshooting
-    BackupSettings(gArgs.GetDataDirNet() / "guisettings.ini.bak", settings);
+    BackupSettings(GetDataDir(true) / "guisettings.ini.bak", settings);
 
     // Save the strDataDir setting
     QString dataDir = GUIUtil::getDefaultDataDirectory();

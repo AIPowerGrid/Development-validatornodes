@@ -5,7 +5,6 @@
 #include <util/system.h>
 
 #include <clientversion.h>
-#include <fs.h>
 #include <hash.h> // For Hash()
 #include <key.h>  // For CKey
 #include <sync.h>
@@ -57,25 +56,25 @@ BOOST_AUTO_TEST_CASE(util_datadir)
 {
     // Use local args variable instead of m_args to avoid making assumptions about test setup
     ArgsManager args;
-    args.ForceSetArg("-datadir", fs::PathToString(m_path_root));
+    args.ForceSetArg("-datadir", m_path_root.string());
 
-    const fs::path dd_norm = args.GetDataDirBase();
+    const fs::path dd_norm = args.GetDataDirPath();
 
-    args.ForceSetArg("-datadir", fs::PathToString(dd_norm) + "/");
+    args.ForceSetArg("-datadir", dd_norm.string() + "/");
     args.ClearPathCache();
-    BOOST_CHECK_EQUAL(dd_norm, args.GetDataDirBase());
+    BOOST_CHECK_EQUAL(dd_norm, args.GetDataDirPath());
 
-    args.ForceSetArg("-datadir", fs::PathToString(dd_norm) + "/.");
+    args.ForceSetArg("-datadir", dd_norm.string() + "/.");
     args.ClearPathCache();
-    BOOST_CHECK_EQUAL(dd_norm, args.GetDataDirBase());
+    BOOST_CHECK_EQUAL(dd_norm, args.GetDataDirPath());
 
-    args.ForceSetArg("-datadir", fs::PathToString(dd_norm) + "/./");
+    args.ForceSetArg("-datadir", dd_norm.string() + "/./");
     args.ClearPathCache();
-    BOOST_CHECK_EQUAL(dd_norm, args.GetDataDirBase());
+    BOOST_CHECK_EQUAL(dd_norm, args.GetDataDirPath());
 
-    args.ForceSetArg("-datadir", fs::PathToString(dd_norm) + "/.//");
+    args.ForceSetArg("-datadir", dd_norm.string() + "/.//");
     args.ClearPathCache();
-    BOOST_CHECK_EQUAL(dd_norm, args.GetDataDirBase());
+    BOOST_CHECK_EQUAL(dd_norm, args.GetDataDirPath());
 }
 
 namespace {
@@ -1260,23 +1259,23 @@ BOOST_AUTO_TEST_CASE(util_ReadWriteSettings)
 {
     // Test writing setting.
     TestArgsManager args1;
-    args1.ForceSetArg("-datadir", fs::PathToString(m_path_root));
+    args1.ForceSetArg("-datadir", m_path_root.string());
     args1.LockSettings([&](util::Settings& settings) { settings.rw_settings["name"] = "value"; });
     args1.WriteSettingsFile();
 
     // Test reading setting.
     TestArgsManager args2;
-    args2.ForceSetArg("-datadir", fs::PathToString(m_path_root));
+    args2.ForceSetArg("-datadir", m_path_root.string());
     args2.ReadSettingsFile();
     args2.LockSettings([&](util::Settings& settings) { BOOST_CHECK_EQUAL(settings.rw_settings["name"].get_str(), "value"); });
 
     // Test error logging, and remove previously written setting.
     {
         ASSERT_DEBUG_LOG("Failed renaming settings file");
-        fs::remove(args1.GetDataDirBase() / "settings.json");
-        fs::create_directory(args1.GetDataDirBase() / "settings.json");
+        fs::remove(args1.GetDataDirPath() / "settings.json");
+        fs::create_directory(args1.GetDataDirPath() / "settings.json");
         args2.WriteSettingsFile();
-        fs::remove(args1.GetDataDirBase() / "settings.json");
+        fs::remove(args1.GetDataDirPath() / "settings.json");
     }
 }
 
@@ -2086,7 +2085,7 @@ static constexpr char ExitCommand = 'X';
 
 BOOST_AUTO_TEST_CASE(test_LockDirectory)
 {
-    fs::path dirname = m_args.GetDataDirBase() / "lock_dir";
+    fs::path dirname = m_args.GetDataDirPath() / "lock_dir";
     const std::string lockname = ".lock";
 #ifndef WIN32
     // Revert SIGCHLD to default, otherwise boost.test will catch and fail on
@@ -2175,7 +2174,7 @@ BOOST_AUTO_TEST_CASE(test_LockDirectory)
 BOOST_AUTO_TEST_CASE(test_DirIsWritable)
 {
     // Should be able to write to the data dir.
-    fs::path tmpdirname = m_args.GetDataDirBase();
+    fs::path tmpdirname = m_args.GetDataDirPath();
     BOOST_CHECK_EQUAL(DirIsWritable(tmpdirname), true);
 
     // Should not be able to write to a non-existent dir.
