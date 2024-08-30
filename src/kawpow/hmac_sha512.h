@@ -7,7 +7,7 @@
 #ifndef AIPG_CRYPTO_HMAC_SHA512_H
 #define AIPG_CRYPTO_HMAC_SHA512_H
 
-#include "crypto-X16R/sha512.h"
+#include "kawpow/sha512.h"
 
 #include <stdint.h>
 #include <stdlib.h>

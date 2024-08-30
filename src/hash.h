@@ -4,29 +4,55 @@
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
+
 #ifndef BITCOIN_HASH_H
 #define BITCOIN_HASH_H
 
+#include <iostream>
+#include <chrono>
 #include <attributes.h>
-#include <crypto/common.h>
+#include <kawpow/common.h>
 #include <crypto/ripemd160.h>
-#include <crypto/sha256.h>
+#include <kawpow/sha256.h>
 #include <prevector.h>
 #include <serialize.h>
 #include <uint256.h>
 #include <version.h>
 
-#include <crypto/sph_blake.h>
-#include <crypto/sph_bmw.h>
-#include <crypto/sph_groestl.h>
-#include <crypto/sph_jh.h>
-#include <crypto/sph_keccak.h>
-#include <crypto/sph_skein.h>
-#include <crypto/sph_luffa.h>
-#include <crypto/sph_cubehash.h>
-#include <crypto/sph_shavite.h>
-#include <crypto/sph_simd.h>
-#include <crypto/sph_echo.h>
+// #include <crypto/sph_blake.h>
+// #include <crypto/sph_bmw.h>
+// #include <crypto/sph_groestl.h>
+// #include <crypto/sph_jh.h>
+// #include <crypto/sph_keccak.h>
+// #include <crypto/sph_skein.h>
+// #include <crypto/sph_luffa.h>
+// #include <crypto/sph_cubehash.h>
+// #include <crypto/sph_shavite.h>
+// #include <crypto/sph_simd.h>
+// #include <crypto/sph_echo.h>
+
+#include "algo/sph_blake.h"
+#include "algo/sph_bmw.h"
+#include "algo/sph_groestl.h"
+#include "algo/sph_jh.h"
+#include "algo/sph_keccak.h"
+#include "algo/sph_skein.h"
+#include "algo/sph_luffa.h"
+#include "algo/sph_cubehash.h"
+#include "algo/sph_shavite.h"
+#include "algo/sph_simd.h"
+#include "algo/sph_echo.h"
+#include "algo/sph_hamsi.h"
+#include "algo/sph_fugue.h"
+#include "algo/sph_shabal.h"
+#include "algo/sph_whirlpool.h"
+#include "algo/sph_sha2.h"
+#include "algo/sph_haval.h"
+
+#include "algo/sph_tiger.h"
+#include "algo/lyra2.h"
+#include "algo/gost_streebog.h"
+#include <kawpow/ethash/helpers.hpp>
 
 #include <vector>
 

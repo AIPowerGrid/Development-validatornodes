@@ -10,7 +10,7 @@
 #define AIPG_CRYPTO_AES_H
 
 extern "C" {
-#include "crypto-X16R/ctaes/ctaes.h"
+#include "kawpow/ctaes/ctaes.h"
 }
 
 static const int AES_BLOCKSIZE = 16;

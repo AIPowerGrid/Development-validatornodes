@@ -7,8 +7,8 @@
 // Based on the public domain implementation 'merged' by D. J. Bernstein
 // See https://cr.yp.to/chacha.html.
 
-#include "crypto-X16R/common.h"
-#include "crypto-X16R/chacha20.h"
+#include "kawpow/common.h"
+#include "kawpow/chacha20.h"
 
 #include <string.h>
 
