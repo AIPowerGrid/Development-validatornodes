@@ -1,98 +1,340 @@
-Dash Core staging tree
-===========================
+# Copyright (c) 2013-2020 The Bitcoin Core developers
+# Copyright (c) 2014-2018 The Dash Core developers
+# Distributed under the MIT software license, see the accompanying
+# file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
-|CI|master|develop|
-|-|-|-|
-|Gitlab|[![Build Status](https://gitlab.com/dashpay/dash/badges/master/pipeline.svg)](https://gitlab.com/dashpay/dash/-/tree/master)|[![Build Status](https://gitlab.com/dashpay/dash/badges/develop/pipeline.svg)](https://gitlab.com/dashpay/dash/-/tree/develop)|
+# Pattern rule to print variables, e.g. make print-top_srcdir
+print-%: FORCE
+	@echo '$*'='$($*)'
 
-https://www.dash.org
+ACLOCAL_AMFLAGS = -I build-aux/m4
+SUBDIRS = src
+if ENABLE_MAN
+SUBDIRS += doc/man
+endif
+.PHONY: deploy FORCE
+.INTERMEDIATE: $(OSX_TEMP_ISO) $(COVERAGE_INFO)
 
-For an immediately usable, binary version of the Dash Core software, see
-https://www.dash.org/downloads/.
+export PYTHONPATH
 
-Further information about Dash Core is available in [./doc/](/doc).
+if BUILD_BITCOIN_LIBS
+pkgconfigdir = $(libdir)/pkgconfig
+pkgconfig_DATA = libdashconsensus.pc
+endif
 
-What is Dash?
--------------
+BITCOIND_BIN=$(top_builddir)/src/$(BITCOIN_DAEMON_NAME)$(EXEEXT)
+BITCOIN_QT_BIN=$(top_builddir)/src/qt/$(BITCOIN_GUI_NAME)$(EXEEXT)
+BITCOIN_CLI_BIN=$(top_builddir)/src/$(BITCOIN_CLI_NAME)$(EXEEXT)
+BITCOIN_TX_BIN=$(top_builddir)/src/$(BITCOIN_TX_NAME)$(EXEEXT)
+BITCOIN_WALLET_BIN=$(top_builddir)/src/$(BITCOIN_WALLET_TOOL_NAME)$(EXEEXT)
+BITCOIN_NODE_BIN=$(top_builddir)/src/$(BITCOIN_MP_NODE_NAME)$(EXEEXT)
+BITCOIN_GUI_BIN=$(top_builddir)/src/$(BITCOIN_MP_GUI_NAME)$(EXEEXT)
+BITCOIN_WIN_INSTALLER=$(PACKAGE)-$(PACKAGE_VERSION)-win64-setup$(EXEEXT)
 
-Dash is an experimental digital currency that enables instant, private
-payments to anyone, anywhere in the world. Dash uses peer-to-peer technology
-to operate with no central authority: managing transactions and issuing money
-are carried out collectively by the network. Dash Core is the name of the open
-source software which enables the use of this currency.
+empty :=
+space := $(empty) $(empty)
 
+OSX_APP=Dash-Qt.app
+OSX_VOLNAME = $(subst $(space),-,$(PACKAGE_NAME))
+OSX_DMG = $(OSX_VOLNAME).dmg
+OSX_TEMP_ISO = $(OSX_DMG:.dmg=).temp.iso
+OSX_DEPLOY_SCRIPT=$(top_srcdir)/contrib/macdeploy/macdeployqtplus
+OSX_INSTALLER_ICONS=$(top_srcdir)/src/qt/res/icons/dash.icns
+OSX_PLIST=$(top_builddir)/share/qt/Info.plist #not installed
 
-For more information read the original Dash whitepaper.
+DIST_CONTRIB = \
+           $(top_srcdir)/contrib/debian/copyright \
+           $(top_srcdir)/contrib/install_db4.sh \
+           $(top_srcdir)/test/sanitizer_suppressions/lsan \
+           $(top_srcdir)/test/sanitizer_suppressions/tsan \
+           $(top_srcdir)/test/sanitizer_suppressions/ubsan \
+           $(top_srcdir)/contrib/linearize/linearize-data.py \
+           $(top_srcdir)/contrib/linearize/linearize-hashes.py
 
-License
--------
+DIST_SHARE = \
+  $(top_srcdir)/share/genbuild.sh \
+  $(top_srcdir)/share/rpcauth
 
-Dash Core is released under the terms of the MIT license. See [COPYING](COPYING) for more
-information or see https://opensource.org/licenses/MIT.
+BIN_CHECKS=$(top_srcdir)/contrib/devtools/symbol-check.py \
+           $(top_srcdir)/contrib/devtools/security-check.py \
+           $(top_srcdir)/contrib/devtools/utils.py
 
-Development Process
--------------------
+WINDOWS_PACKAGING = $(top_srcdir)/share/pixmaps/dash.ico \
+  $(top_srcdir)/share/pixmaps/nsis-header.bmp \
+  $(top_srcdir)/share/pixmaps/nsis-wizard.bmp \
+  $(top_srcdir)/doc/README_windows.txt
 
-The `master` branch is meant to be stable. Development is normally done in separate branches.
-[Tags](https://github.com/dashpay/dash/tags) are created to indicate new official,
-stable release versions of Dash Core.
+OSX_PACKAGING = $(OSX_DEPLOY_SCRIPT) $(OSX_INSTALLER_ICONS) \
+  $(top_srcdir)/contrib/macdeploy/detached-sig-create.sh
 
-The `develop` branch is regularly built (see doc/build-*.md for instructions) and tested, but is not guaranteed to be
-completely stable.
+COVERAGE_INFO = $(COV_TOOL_WRAPPER) baseline.info \
+  test_dash_filtered.info total_coverage.info \
+  baseline_filtered.info functional_test.info functional_test_filtered.info \
+  test_dash_coverage.info test_dash.info fuzz.info fuzz_filtered.info fuzz_coverage.info
 
-The contribution workflow is described in [CONTRIBUTING.md](CONTRIBUTING.md)
-and useful hints for developers can be found in [doc/developer-notes.md](doc/developer-notes.md).
+dist-hook:
+	-$(GIT) archive --format=tar HEAD -- src/clientversion.cpp | $(AMTAR) -C $(top_distdir) -xf -
 
-Build / Compile from Source
----------------------------
+if TARGET_WINDOWS
+$(BITCOIN_WIN_INSTALLER): all-recursive
+	$(MKDIR_P) $(top_builddir)/release
+	STRIPPROG="$(STRIP)" $(INSTALL_STRIP_PROGRAM) $(BITCOIND_BIN) $(top_builddir)/release
+	STRIPPROG="$(STRIP)" $(INSTALL_STRIP_PROGRAM) $(BITCOIN_QT_BIN) $(top_builddir)/release
+	STRIPPROG="$(STRIP)" $(INSTALL_STRIP_PROGRAM) $(BITCOIN_CLI_BIN) $(top_builddir)/release
+	STRIPPROG="$(STRIP)" $(INSTALL_STRIP_PROGRAM) $(BITCOIN_TX_BIN) $(top_builddir)/release
+	STRIPPROG="$(STRIP)" $(INSTALL_STRIP_PROGRAM) $(BITCOIN_WALLET_BIN) $(top_builddir)/release
+	@test -f $(MAKENSIS) && echo 'OutFile "$@"' | cat $(top_builddir)/share/setup.nsi - | $(MAKENSIS) -V2 - || \
+	  echo error: could not build $@
+	@echo built $@
 
-The `./configure`, `make`, and `cmake` steps, as well as build dependencies, are in [./doc/](/doc) as well:
+deploy: $(BITCOIN_WIN_INSTALLER)
+endif
 
-- **Linux**: [./doc/build-unix.md](/doc/build-unix.md) \
-  Ubuntu, Debian, Fedora, Arch, and others
-- **macOS**: [./doc/build-osx.md](/doc/build-osx.md)
-- **Windows**: [./doc/build-windows.md](/doc/build-windows.md)
-- **OpenBSD**: [./doc/build-openbsd.md](/doc/build-openbsd.md)
-- **FreeBSD**: [./doc/build-freebsd.md](/doc/build-freebsd.md)
-- **NetBSD**: [./doc/build-netbsd.md](/doc/build-netbsd.md)
+if TARGET_DARWIN
+$(OSX_APP)/Contents/PkgInfo:
+	$(MKDIR_P) $(@D)
+	@echo "APPL????" > $@
 
-Testing
--------
+$(OSX_APP)/Contents/Resources/empty.lproj:
+	$(MKDIR_P) $(@D)
+	@touch $@
 
-Testing and code review is the bottleneck for development; we get more pull
-requests than we can review and test on short notice. Please be patient and help out by testing
-other people's pull requests, and remember this is a security-critical project where any mistake might cost people
-lots of money.
+$(OSX_APP)/Contents/Info.plist: $(OSX_PLIST)
+	$(MKDIR_P) $(@D)
+	$(INSTALL_DATA) $< $@
 
-### Automated Testing
+$(OSX_APP)/Contents/Resources/dash.icns: $(OSX_INSTALLER_ICONS)
+	$(MKDIR_P) $(@D)
+	$(INSTALL_DATA) $< $@
 
-Developers are strongly encouraged to write [unit tests](src/test/README.md) for new code, and to
-submit new unit tests for old code. Unit tests can be compiled and run
-(assuming they weren't disabled in configure) with: `make check`. Further details on running
-and extending unit tests can be found in [/src/test/README.md](/src/test/README.md).
+$(OSX_APP)/Contents/MacOS/Dash-Qt: all-recursive
+	$(MKDIR_P) $(@D)
+	STRIPPROG="$(STRIP)" $(INSTALL_STRIP_PROGRAM)  $(BITCOIN_QT_BIN) $@
 
-There are also [regression and integration tests](/test), written
-in Python.
-These tests can be run (if the [test dependencies](/test) are installed) with: `test/functional/test_runner.py`
+$(OSX_APP)/Contents/Resources/Base.lproj/InfoPlist.strings:
+	$(MKDIR_P) $(@D)
+	echo '{	CFBundleDisplayName = "$(PACKAGE_NAME)"; CFBundleName = "$(PACKAGE_NAME)"; }' > $@
 
-The CI (Continuous Integration) systems make sure that every pull request is built for Windows, Linux, and macOS,
-and that unit/sanity tests are run automatically.
+OSX_APP_BUILT=$(OSX_APP)/Contents/PkgInfo $(OSX_APP)/Contents/Resources/empty.lproj \
+  $(OSX_APP)/Contents/Resources/dash.icns $(OSX_APP)/Contents/Info.plist \
+  $(OSX_APP)/Contents/MacOS/Dash-Qt $(OSX_APP)/Contents/Resources/Base.lproj/InfoPlist.strings
 
-### Manual Quality Assurance (QA) Testing
+osx_volname:
+	echo $(OSX_VOLNAME) >$@
 
-Changes should be tested by somebody other than the developer who wrote the
-code. This is especially important for large or high-risk changes. It is useful
-to add a test plan to the pull request description if testing the changes is
-not straightforward.
+if BUILD_DARWIN
+$(OSX_DMG): $(OSX_APP_BUILT) $(OSX_PACKAGING)
+	$(PYTHON) $(OSX_DEPLOY_SCRIPT) $(OSX_APP) $(OSX_VOLNAME) -translations-dir=$(QT_TRANSLATION_DIR) -dmg
 
-Translations
-------------
+deploydir: $(OSX_DMG)
+else !BUILD_DARWIN
+APP_DIST_DIR=$(top_builddir)/dist
 
-Changes to translations as well as new translations can be submitted to
-[Dash Core's Transifex page](https://www.transifex.com/projects/p/dash/).
+$(OSX_TEMP_ISO): $(APP_DIST_DIR)/$(OSX_APP)/Contents/MacOS/Dash-Qt
+	$(XORRISOFS) -D -l -V "$(OSX_VOLNAME)" -no-pad -r -dir-mode 0755 -o $@ $(APP_DIST_DIR) -- $(if $(SOURCE_DATE_EPOCH),-volume_date all_file_dates =$(SOURCE_DATE_EPOCH))
 
-Translations are periodically pulled from Transifex and merged into the git repository. See the
-[translation process](doc/translation_process.md) for details on how this works.
+$(OSX_DMG): $(OSX_TEMP_ISO)
+	$(DMG) dmg "$<" "$@"
 
-**Important**: We do not accept translation changes as GitHub pull requests because the next
-pull from Transifex would automatically overwrite them again.
+$(APP_DIST_DIR)/$(OSX_APP)/Contents/MacOS/Dash-Qt: $(OSX_APP_BUILT) $(OSX_PACKAGING)
+	INSTALLNAMETOOL=$(INSTALLNAMETOOL) OTOOL=$(OTOOL) STRIP=$(STRIP) $(PYTHON) $(OSX_DEPLOY_SCRIPT) $(OSX_APP) $(OSX_VOLNAME) -translations-dir=$(QT_TRANSLATION_DIR)
+
+deploydir: $(APP_DIST_DIR)/$(OSX_APP)/Contents/MacOS/Dash-Qt
+endif !BUILD_DARWIN
+
+appbundle: $(OSX_APP_BUILT)
+deploy: $(OSX_DMG)
+endif
+
+$(BITCOIN_QT_BIN): FORCE
+	$(MAKE) -C src qt/$(@F)
+
+$(BITCOIND_BIN): FORCE
+	$(MAKE) -C src $(@F)
+
+$(BITCOIN_CLI_BIN): FORCE
+	$(MAKE) -C src $(@F)
+
+$(BITCOIN_TX_BIN): FORCE
+	$(MAKE) -C src $(@F)
+
+$(BITCOIN_WALLET_BIN): FORCE
+	$(MAKE) -C src $(@F)
+
+$(BITCOIN_NODE_BIN): FORCE
+	$(MAKE) -C src $(@F)
+
+$(BITCOIN_GUI_BIN): FORCE
+	$(MAKE) -C src $(@F)
+
+if USE_LCOV
+LCOV_FILTER_PATTERN = \
+	-p "/usr/local/" \
+	-p "/usr/include/" \
+	-p "/usr/lib/" \
+	-p "/usr/lib64/" \
+	-p "src/dashbls/" \
+	-p "src/immer/" \
+	-p "src/leveldb/" \
+	-p "src/crc32c/" \
+	-p "src/bench/" \
+	-p "src/univalue" \
+	-p "src/crypto/ctaes" \
+	-p "src/secp256k1" \
+	-p "depends"
+
+DIR_FUZZ_SEED_CORPUS ?= qa-assets/fuzz_seed_corpus
+
+$(COV_TOOL_WRAPPER):
+	@echo 'exec $(COV_TOOL) "$$@"' > $(COV_TOOL_WRAPPER)
+	@chmod +x $(COV_TOOL_WRAPPER)
+
+baseline.info: $(COV_TOOL_WRAPPER)
+	$(LCOV) -c -i -d $(abs_builddir)/src -o $@
+
+baseline_filtered.info: baseline.info
+	$(abs_builddir)/contrib/filter-lcov.py $(LCOV_FILTER_PATTERN) $< $@
+	$(LCOV) -a $@ $(LCOV_OPTS) -o $@
+
+fuzz.info: baseline_filtered.info
+	@TIMEOUT=15 test/fuzz/test_runner.py $(DIR_FUZZ_SEED_CORPUS) -l DEBUG
+	$(LCOV) -c $(LCOV_OPTS) -d $(abs_builddir)/src --t fuzz-tests -o $@
+	$(LCOV) -z $(LCOV_OPTS) -d $(abs_builddir)/src
+
+fuzz_filtered.info: fuzz.info
+	$(abs_builddir)/contrib/filter-lcov.py $(LCOV_FILTER_PATTERN) $< $@
+	$(LCOV) -a $@ $(LCOV_OPTS) -o $@
+
+test_dash.info: baseline_filtered.info
+	$(MAKE) -C src/ check
+	$(LCOV) -c $(LCOV_OPTS) -d $(abs_builddir)/src -t test_dash -o $@
+	$(LCOV) -z $(LCOV_OPTS) -d $(abs_builddir)/src
+
+test_dash_filtered.info: test_dash.info
+	$(abs_builddir)/contrib/filter-lcov.py $(LCOV_FILTER_PATTERN) $< $@
+	$(LCOV) -a $@ $(LCOV_OPTS) -o $@
+
+functional_test.info: test_dash_filtered.info
+	@TIMEOUT=15 test/functional/test_runner.py $(EXTENDED_FUNCTIONAL_TESTS)
+	$(LCOV) -c $(LCOV_OPTS) -d $(abs_builddir)/src --t functional-tests -o $@
+	$(LCOV) -z $(LCOV_OPTS) -d $(abs_builddir)/src
+
+functional_test_filtered.info: functional_test.info
+	$(abs_builddir)/contrib/filter-lcov.py $(LCOV_FILTER_PATTERN) $< $@
+	$(LCOV) -a $@ $(LCOV_OPTS) -o $@
+
+fuzz_coverage.info: fuzz_filtered.info
+	$(LCOV) -a $(LCOV_OPTS) baseline_filtered.info -a fuzz_filtered.info -o $@ | $(GREP) "\%" | $(AWK) '{ print substr($$3,2,50) "/" $$5 }' > coverage_percent.txt
+
+test_dash_coverage.info: baseline_filtered.info test_dash_filtered.info
+	$(LCOV) -a $(LCOV_OPTS) baseline_filtered.info -a test_dash_filtered.info -o $@
+
+total_coverage.info: test_dash_filtered.info functional_test_filtered.info
+	$(LCOV) -a $(LCOV_OPTS) baseline_filtered.info -a test_dash_filtered.info -a functional_test_filtered.info -o $@ | $(GREP) "\%" | $(AWK) '{ print substr($$3,2,50) "/" $$5 }' > coverage_percent.txt
+
+fuzz.coverage/.dirstamp: fuzz_coverage.info
+	$(GENHTML) -s $(LCOV_OPTS) $< -o $(@D)
+	@touch $@
+
+test_dash.coverage/.dirstamp:  test_dash_coverage.info
+	$(GENHTML) -s $(LCOV_OPTS) $< -o $(@D)
+	@touch $@
+
+total.coverage/.dirstamp: total_coverage.info
+	$(GENHTML) -s $(LCOV_OPTS) $< -o $(@D)
+	@touch $@
+
+cov_fuzz: fuzz.coverage/.dirstamp
+
+cov: test_dash.coverage/.dirstamp total.coverage/.dirstamp
+
+endif
+
+dist_noinst_SCRIPTS = autogen.sh
+
+EXTRA_DIST = $(DIST_SHARE) $(DIST_CONTRIB) $(WINDOWS_PACKAGING) $(OSX_PACKAGING) $(BIN_CHECKS)
+
+EXTRA_DIST += \
+    test/functional \
+    test/fuzz
+
+EXTRA_DIST += \
+    test/util/bitcoin-util-test.py \
+    test/util/data/bitcoin-util-test.json \
+    test/util/data/blanktxv1.hex \
+    test/util/data/blanktxv1.json \
+    test/util/data/blanktxv2.hex \
+    test/util/data/blanktxv2.json \
+    test/util/data/tt-delin1-out.hex \
+    test/util/data/tt-delin1-out.json \
+    test/util/data/tt-delout1-out.hex \
+    test/util/data/tt-delout1-out.json \
+    test/util/data/tt-locktime317000-out.hex \
+    test/util/data/tt-locktime317000-out.json \
+    test/util/data/tx394b54bb.hex \
+    test/util/data/txcreate1.hex \
+    test/util/data/txcreate1.json \
+    test/util/data/txcreate2.hex \
+    test/util/data/txcreate2.json \
+    test/util/data/txcreatedata1.hex \
+    test/util/data/txcreatedata1.json \
+    test/util/data/txcreatedata2.hex \
+    test/util/data/txcreatedata2.json \
+    test/util/data/txcreatedata_seq0.hex \
+    test/util/data/txcreatedata_seq0.json \
+    test/util/data/txcreatedata_seq1.hex \
+    test/util/data/txcreatedata_seq1.json \
+    test/util/data/txcreatemultisig1.hex \
+    test/util/data/txcreatemultisig1.json \
+    test/util/data/txcreatemultisig2.hex \
+    test/util/data/txcreatemultisig2.json \
+    test/util/data/txcreateoutpubkey1.hex \
+    test/util/data/txcreateoutpubkey1.json \
+    test/util/data/txcreatescript1.hex \
+    test/util/data/txcreatescript1.json \
+    test/util/data/txcreatescript2.hex \
+    test/util/data/txcreatescript2.json \
+    test/util/data/txcreatescript5.hex \
+    test/util/data/txcreatescript6.hex \
+    test/util/data/txcreatesignv1.hex \
+    test/util/data/txcreatesignv1.json \
+    test/util/data/txcreatesignv2.hex \
+    test/util/rpcauth-test.py
+
+CLEANFILES = $(OSX_DMG) $(BITCOIN_WIN_INSTALLER)
+
+DISTCHECK_CONFIGURE_FLAGS = --enable-man
+
+doc/doxygen/.stamp: doc/Doxyfile FORCE
+	$(MKDIR_P) $(@D)
+	$(DOXYGEN) $^
+	$(AM_V_at) touch $@
+
+if HAVE_DOXYGEN
+docs: doc/doxygen/.stamp
+else
+docs:
+	@echo "error: doxygen not found"
+endif
+
+clean-docs:
+	rm -rf doc/doxygen
+
+clean-local: clean-docs
+	rm -rf coverage_percent.txt test_dash.coverage/ total.coverage/ fuzz.coverage/ test/tmp/ cache/ $(OSX_APP)
+	rm -rf test/functional/__pycache__ test/functional/test_framework/__pycache__ test/cache share/rpcauth/__pycache__
+	rm -rf osx_volname dist/
+
+test-security-check:
+if TARGET_DARWIN
+	$(AM_V_at) CC='$(CC)' CFLAGS='$(CFLAGS)' CPPFLAGS='$(CPPFLAGS)' LDFLAGS='$(LDFLAGS)' $(PYTHON) $(top_srcdir)/contrib/devtools/test-security-check.py TestSecurityChecks.test_MACHO
+	$(AM_V_at) CC='$(CC)' CFLAGS='$(CFLAGS)' CPPFLAGS='$(CPPFLAGS)' LDFLAGS='$(LDFLAGS)' $(PYTHON) $(top_srcdir)/contrib/devtools/test-symbol-check.py TestSymbolChecks.test_MACHO
+endif
+if TARGET_WINDOWS
+	$(AM_V_at) CC='$(CC)' CFLAGS='$(CFLAGS)' CPPFLAGS='$(CPPFLAGS)' LDFLAGS='$(LDFLAGS)' $(PYTHON) $(top_srcdir)/contrib/devtools/test-security-check.py TestSecurityChecks.test_PE
+	$(AM_V_at) CC='$(CC)' CFLAGS='$(CFLAGS)' CPPFLAGS='$(CPPFLAGS)' LDFLAGS='$(LDFLAGS)' $(PYTHON) $(top_srcdir)/contrib/devtools/test-symbol-check.py TestSymbolChecks.test_PE
+endif
+if TARGET_LINUX
+	$(AM_V_at) CC='$(CC)' CFLAGS='$(CFLAGS)' CPPFLAGS='$(CPPFLAGS)' LDFLAGS='$(LDFLAGS)' $(PYTHON) $(top_srcdir)/contrib/devtools/test-security-check.py TestSecurityChecks.test_ELF
+	$(AM_V_at) CC='$(CC)' CFLAGS='$(CFLAGS)' CPPFLAGS='$(CPPFLAGS)' LDFLAGS='$(LDFLAGS)' $(PYTHON) $(top_srcdir)/contrib/devtools/test-symbol-check.py TestSymbolChecks.test_ELF
+endif
