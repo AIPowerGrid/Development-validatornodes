@@ -3,7 +3,7 @@
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
 #include <coins.h>
-#include <crypto/sha256.h>
+#include <kawpow/sha256.h>
 #include <primitives/transaction.h>
 #include <test/fuzz/fuzz.h>
 #include <test/fuzz/FuzzedDataProvider.h>

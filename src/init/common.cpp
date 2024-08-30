@@ -8,7 +8,7 @@
 
 #include <bls/bls.h>
 #include <clientversion.h>
-#include <crypto/sha256.h>
+#include <kawpow/sha256.h>
 #include <key.h>
 #include <logging.h>
 #include <node/ui_interface.h>
