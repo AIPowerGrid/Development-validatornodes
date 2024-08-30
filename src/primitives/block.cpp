@@ -18,7 +18,7 @@ uint32_t nKAWPOWActivationTime;
 
 uint256 CBlockHeader::GetHash() const
 {
-    if (nTime < 1723905113) {
+    if (nTime < 1725037222) {
         std::vector<unsigned char> vch(80);
         CVectorWriter ss(SER_GETHASH, PROTOCOL_VERSION, vch, 0);
         ss << *this;
@@ -47,7 +47,7 @@ uint256 CBlockHeader::GetX16RHash() const
 
 uint256 CBlockHeader::GetHashFull(uint256& mix_hash) const
 {
-    if (nTime < 1723905113) {
+    if (nTime < 1725037222) {
         std::vector<unsigned char> vch(80);
         CVectorWriter ss(SER_GETHASH, PROTOCOL_VERSION, vch, 0);
         ss << *this;

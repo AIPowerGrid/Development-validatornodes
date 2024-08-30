@@ -286,15 +286,33 @@ public:
         m_assumed_chain_state_size = 1;
 
         //FindMainNetGenesisBlock(1723905114, 0x20001fff, "main");
-        uint32_t nGenesisTime = 1723905114;	
+        uint32_t nGenesisTime = 1725035287;	
         
-	    genesis = CreateGenesisBlock(nGenesisTime, 3061, 0x20001fff, 4, 5000 * COIN);
-        uint256 mix_hash;
-        consensus.hashGenesisBlock = genesis.GetHashFull(mix_hash);
-        genesis.mix_hash = mix_hash;
-        //std::cout << "hashGenesisBlock " << consensus.hashGenesisBlock.GetHex() << std::endl;
-	    assert(consensus.hashGenesisBlock == uint256S("000907a4ee235ffb1b1eccb7cc3289ed845b51d312c120c6bd213dce08ef910c"));
-        assert(genesis.hashMerkleRoot == uint256S("978a6bdc0038f2590723c4874583aaf8d3f9177711e4eea62e6ce90ec218090c"));
+        genesis = CreateGenesisBlock(nGenesisTime, 3129301, 0x1e0ffff0, 1, 5000 * COIN);
+        consensus.hashGenesisBlock = genesis.GetHash();
+        // calculate main genesis block
+        //consensus.hashGenesisBlock = uint256S("0x00");
+        if (true && (genesis.GetHash() != consensus.hashGenesisBlock)) {
+		std::cout << std::string("Calculating main genesis block...\n");
+            arith_uint256 hashTarget = arith_uint256().SetCompact(genesis.nBits);
+            uint256 hash;
+            genesis.nNonce = 0;
+            while (UintToArith256(genesis.GetHash()) > hashTarget)
+            {
+                ++genesis.nNonce;
+                if (genesis.nNonce == 0)
+                {
+                    ++genesis.nTime;
+                }
+            }
+            std::cout << "Genesis block found!\n";
+            std::cout << "nonce: " << genesis.nNonce << "\n";
+            std::cout << "time: " << genesis.nTime << "\n";
+            std::cout << "blockhash: " << genesis.GetHash().ToString().c_str() << "\n";
+            std::cout << "merklehash: " << genesis.hashMerkleRoot.ToString().c_str() << "\n";
+        }
+        assert(consensus.hashGenesisBlock == uint256S("0x000004ce8ef1d7119f96a48eb1fa6f878842b2d73ad3c98dc25f822c13707aa7"));
+        assert(genesis.hashMerkleRoot == uint256S("0x978a6bdc0038f2590723c4874583aaf8d3f9177711e4eea62e6ce90ec218090c"));
 
         // Note that of those which support the service bits prefix, most only support a subset of
         // possible options.
