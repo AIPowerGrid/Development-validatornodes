@@ -627,30 +627,30 @@ crypto_libbitcoin_crypto_base_a_SOURCES = \
   crypto/sha512.h \
   crypto/siphash.cpp \
   crypto/siphash.h \
-  crypto-X16R/ethash/include/ethash/ethash.h \
-  crypto-X16R/ethash/include/ethash/ethash.hpp \
-  crypto-X16R/ethash/include/ethash/hash_types.h \
-  crypto-X16R/ethash/include/ethash/hash_types.hpp \
-  crypto-X16R/ethash/include/ethash/keccak.h \
-  crypto-X16R/ethash/include/ethash/keccak.hpp \
-  crypto-X16R/ethash/include/ethash/progpow.hpp \
-  crypto-X16R/ethash/include/ethash/version.h \
-  crypto-X16R/ethash/lib/ethash/bit_manipulation.h \
-  crypto-X16R/ethash/lib/ethash/builtins.h \
-  crypto-X16R/ethash/lib/ethash/endianness.hpp \
-  crypto-X16R/ethash/lib/ethash/ethash.cpp \
-  crypto-X16R/ethash/lib/ethash/ethash-internal.hpp \
-  crypto-X16R/ethash/lib/ethash/kiss99.hpp \
-  crypto-X16R/ethash/lib/ethash/managed.cpp \
-  crypto-X16R/ethash/lib/ethash/primes.c \
-  crypto-X16R/ethash/lib/ethash/primes.h \
-  crypto-X16R/ethash/lib/ethash/progpow.cpp \
-  crypto-X16R/ethash/lib/keccak/keccak.c \
-  crypto-X16R/ethash/lib/keccak/keccakf1600.c \
-  crypto-X16R/ethash/lib/keccak/keccakf800.c \
-  crypto-X16R/ethash/lib/support/attributes.h \
-  crypto-X16R/ethash/helpers.hpp \
-  crypto-X16R/ethash/progpow_test_vectors.hpp
+  kawpow/ethash/include/ethash/ethash.h \
+  kawpow/ethash/include/ethash/ethash.hpp \
+  kawpow/ethash/include/ethash/hash_types.h \
+  kawpow/ethash/include/ethash/hash_types.hpp \
+  kawpow/ethash/include/ethash/keccak.h \
+  kawpow/ethash/include/ethash/keccak.hpp \
+  kawpow/ethash/include/ethash/progpow.hpp \
+  kawpow/ethash/include/ethash/version.h \
+  kawpow/ethash/lib/ethash/bit_manipulation.h \
+  kawpow/ethash/lib/ethash/builtins.h \
+  kawpow/ethash/lib/ethash/endianness.hpp \
+  kawpow/ethash/lib/ethash/ethash.cpp \
+  kawpow/ethash/lib/ethash/ethash-internal.hpp \
+  kawpow/ethash/lib/ethash/kiss99.hpp \
+  kawpow/ethash/lib/ethash/managed.cpp \
+  kawpow/ethash/lib/ethash/primes.c \
+  kawpow/ethash/lib/ethash/primes.h \
+  kawpow/ethash/lib/ethash/progpow.cpp \
+  kawpow/ethash/lib/keccak/keccak.c \
+  kawpow/ethash/lib/keccak/keccakf1600.c \
+  kawpow/ethash/lib/keccak/keccakf800.c \
+  kawpow/ethash/lib/support/attributes.h \
+  kawpow/ethash/helpers.hpp \
+  kawpow/ethash/progpow_test_vectors.hpp
 
 
 if USE_ASM
